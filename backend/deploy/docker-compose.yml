@@ -1,0 +1,31 @@
+# Staging stack: API + queue worker + PostgreSQL + Redis + Caddy (automatic HTTPS).
+# Run from the backend/ folder:  docker compose -f deploy/docker-compose.yml up -d --build
+# Point DNS for staging-api.sarifio.com at the server first so Caddy can get a certificate.
+services:
+  api:
+    build: { context: .., dockerfile: deploy/Dockerfile }
+    env_file: .env.staging
+    depends_on: [postgres, redis]
+    restart: unless-stopped
+  worker:
+    build: { context: .., dockerfile: deploy/Dockerfile }
+    env_file: .env.staging
+    command: php artisan queue:work --tries=3 --backoff=5
+    depends_on: [api]
+    restart: unless-stopped
+  postgres:
+    image: postgres:16
+    environment: { POSTGRES_DB: sarifio_staging, POSTGRES_USER: sarifio, POSTGRES_PASSWORD: change-me }
+    volumes: [pgdata:/var/lib/postgresql/data]
+    restart: unless-stopped
+  redis:
+    image: redis:7
+    restart: unless-stopped
+  caddy:
+    image: caddy:2
+    ports: ["80:80", "443:443"]
+    command: caddy reverse-proxy --from staging-api.sarifio.com --to api:8000
+    volumes: [caddydata:/data]
+    depends_on: [api]
+    restart: unless-stopped
+volumes: { pgdata: {}, caddydata: {} }

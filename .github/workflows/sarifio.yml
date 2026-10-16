@@ -1,0 +1,43 @@
+name: SARIFIO build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: "Staging API URL (leave empty for on-device Test Mode)"
+        required: false
+        default: ""
+
+jobs:
+  android-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: "17" }
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+      - name: Build SARIFIO-Android-Test.apk
+        working-directory: mobile
+        env:
+          API_BASE_URL: ${{ github.event.inputs.api_base_url }}
+        run: ./tool/build_apk.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SARIFIO-Android-Test
+          path: mobile/dist/SARIFIO-Android-Test.apk
+          retention-days: 30
+
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with: { php-version: "8.3", extensions: "pdo_sqlite, bcmath", tools: composer }
+      - name: Build Laravel app with the SARIFIO overlay
+        run: ./backend/setup.sh "$RUNNER_TEMP/sarifio-api"
+      - name: Run tests (fee engine, ledger, idempotency, eBirr / M-Pesa flows)
+        working-directory: ${{ runner.temp }}/sarifio-api
+        run: php artisan test
