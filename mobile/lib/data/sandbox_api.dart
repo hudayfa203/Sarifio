@@ -230,6 +230,9 @@ class SandboxApi implements SarifioApi {
         createdAt: DateTime.now(),
       );
       users[o.phone] = user.toJson();
+      db['users'] = users;
+      db['session'] = o.phone;
+      _seedDemoInto(db, user);
     }
     db['users'] = users;
     db['session'] = o.phone;
@@ -539,6 +542,120 @@ class SandboxApi implements SarifioApi {
   }
 
   String get nextOutcome => (_load()['outcome'] as String?) ?? 'success';
+
+
+  // ---------- demo data ----------
+
+  /// Adds realistic, clearly-test exchanges to the signed-in account so every
+  /// screen can be seen "in use". Returns how many were added.
+  Future<int> seedDemo() async {
+    final db = _load();
+    final user = _requireUser(db);
+    final n = _seedDemoInto(db, user);
+    await _save(db);
+    return n;
+  }
+
+  int _seedDemoInto(Map<String, dynamic> db, AppUser user) {
+    final cfg = buildConfig();
+    final now = DateTime.now();
+    // from, to, amount (minor units of the sending wallet), age, outcome, receiver
+    final specs = <(String, String, int, Duration, String, String?)>[
+      ('sahal', 'edahab', 10000, const Duration(hours: 2), 'success', 'Amina Yusuf'),
+      ('evc_plus', 'mpesa', 25000, const Duration(hours: 20), 'success', 'John Kamau'),
+      ('sahal', 'premier_wallet', 50000, const Duration(hours: 26), 'manual_review', null),
+      ('sahal', 'ebirr', 8000, const Duration(days: 2, hours: 3), 'success', 'Abebe Tesfaye'),
+      ('premier_wallet', 'sahal', 4550, const Duration(days: 3, hours: 5), 'success', 'Hodan Ali'),
+      ('edahab', 'premier_wallet', 30000, const Duration(days: 4, hours: 1), 'fail_payout', 'Farah Warsame'),
+      ('mpesa', 'sahal', 500000, const Duration(days: 5, hours: 7), 'success', null),
+      ('ebirr', 'evc_plus', 600000, const Duration(days: 6, hours: 2), 'success', 'Ayaan Mohamed'),
+      ('evc_plus', 'edahab', 2000, const Duration(days: 7, hours: 4), 'fail_payment', null),
+      ('edahab', 'sahal', 15000, const Duration(days: 9), 'success', 'Ismail Nur'),
+    ];
+    final txMap = (db['tx'] as Map).cast<String, dynamic>();
+    var seq = (db['seq'] as num).toInt();
+    var added = 0;
+    for (final sp in specs) {
+      final fromP = cfg.provider(sp.$1)!;
+      final toP = cfg.provider(sp.$2)!;
+      final fx = cfg.rate(fromP.currency, toP.currency)!;
+      final route = cfg.route(sp.$1, sp.$2)!;
+      final m = FeeEngine.quote(
+        amountMinor: sp.$3,
+        feeBps: cfg.feeBps,
+        providerFeeMinor: FeeEngine.feeMinor(sp.$3, route.providerFeeBps),
+        midRateMicro: fx.midRateMicro,
+        spreadBps: fx.spreadBps,
+      );
+      final t0 = now.subtract(sp.$4);
+      DateTime at(int s) => t0.add(Duration(seconds: s));
+      final events = [TxEvent(TxStatus.created, t0), TxEvent(TxStatus.quoted, t0), TxEvent(TxStatus.awaitingPayment, t0)];
+      TxStatus status;
+      String? reason;
+      switch (sp.$5) {
+        case 'fail_payment':
+          events.add(TxEvent(TxStatus.failed, at(120)));
+          status = TxStatus.failed;
+          reason = 'The sending provider declined the payment (simulated).';
+          break;
+        case 'fail_payout':
+          events
+            ..add(TxEvent(TxStatus.paymentVerified, at(40)))
+            ..add(TxEvent(TxStatus.payoutProcessing, at(55)))
+            ..add(TxEvent(TxStatus.failed, at(90)))
+            ..add(TxEvent(TxStatus.refunded, at(150)));
+          status = TxStatus.refunded;
+          reason = 'The receiving provider rejected the payout. Your money was returned (simulated).';
+          break;
+        case 'manual_review':
+          events
+            ..add(TxEvent(TxStatus.paymentVerified, at(40)))
+            ..add(TxEvent(TxStatus.manualReview, at(60)));
+          status = TxStatus.manualReview;
+          reason = 'This exchange is being reviewed by our team (simulated).';
+          break;
+        default:
+          events
+            ..add(TxEvent(TxStatus.paymentVerified, at(40)))
+            ..add(TxEvent(TxStatus.payoutProcessing, at(55)))
+            ..add(TxEvent(TxStatus.settled, at(80)));
+          status = TxStatus.settled;
+      }
+      seq++;
+      final digits = '${2520000000 + _rng.nextInt(99999999)}';
+      final tx = Transaction(
+        id: _id('tx_'),
+        reference: 'SRF-T${seq.toString().padLeft(5, '0')}-${_id('').substring(0, 4)}',
+        status: status,
+        test: true,
+        from: ProviderRef(fromP.code, fromP.name, fromP.group),
+        to: ProviderRef(toP.code, toP.name, toP.group),
+        currency: fromP.currency,
+        receiveCurrency: toP.currency,
+        amountCents: sp.$3,
+        feeBps: cfg.feeBps,
+        feeCents: m.feeMinor,
+        providerFeeCents: m.providerFeeMinor,
+        rateMicro: m.appliedRateMicro,
+        rateDifferenceMinor: m.rateDifferenceMinor,
+        receiveCents: m.receiveMinor,
+        recipientAccount: '•••• ${digits.substring(digits.length - 4)}',
+        recipientName: sp.$6,
+        events: events,
+        failureReason: reason,
+        createdAt: t0,
+        updatedAt: events.last.at,
+      );
+      txMap[tx.id] = tx.toJson()
+        ..['owner'] = user.phone
+        ..['outcome'] = sp.$5
+        ..['demo'] = true;
+      added++;
+    }
+    db['tx'] = txMap;
+    db['seq'] = seq;
+    return added;
+  }
 
   @override
   Future<void> resetTestData() async {

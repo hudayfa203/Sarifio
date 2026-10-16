@@ -27,10 +27,14 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
   Future<void> _boot() async {
     final app = AppScope.read(context);
-    await Future.wait([
-      app.init(),
-      Future<void>.delayed(const Duration(milliseconds: 1600)),
-    ]);
+    try {
+      await Future.wait([
+        app.init().timeout(const Duration(seconds: 10)),
+        Future<void>.delayed(const Duration(milliseconds: 1600)),
+      ]);
+    } catch (_) {
+      // Never get stuck on the splash: continue with whatever state loaded.
+    }
     if (!mounted) return;
     final Widget next;
     if (!app.onboardingSeen) {
@@ -58,6 +62,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     return Scaffold(
       backgroundColor: SC.ink,
       body: Container(
+        width: double.infinity,
+        height: double.infinity,
         decoration: const BoxDecoration(
           gradient: RadialGradient(
             center: Alignment(0, -0.2),
@@ -72,6 +78,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             builder: (context, _) {
               final word = Curves.easeOut.transform(((_c.value - 0.45) / 0.55).clamp(0.0, 1.0));
               return Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   const Spacer(flex: 5),
                   SarifioMark.reversed(size: 96, progress: _c.value),

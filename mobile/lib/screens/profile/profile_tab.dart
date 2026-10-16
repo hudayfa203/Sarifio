@@ -269,6 +269,15 @@ class _ProfileTabState extends State<ProfileTab> {
                 ],
               ),
             ),
+            if (app.api is SandboxApi)
+              row(Icons.auto_awesome_outlined, s.t('load_demo'), value: s.t('load_demo_sub'), onTap: () async {
+                final n = await (app.api as SandboxApi).seedDemo();
+                await app.loadTransactions();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(SnackBar(content: Text(s.t('demo_added', {'n': '$n'}))));
+                }
+              }),
             if (app.api.isOnDevice)
               row(Icons.restart_alt_rounded, s.t('reset_test'), onTap: () async {
                 await app.api.resetTestData();
