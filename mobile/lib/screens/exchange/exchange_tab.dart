@@ -299,7 +299,7 @@ class _ExchangeTabState extends State<ExchangeTab> {
                     inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
                     textAlign: TextAlign.right,
                     style: display(28, color: p.text),
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: '0.00',
                       prefixText: currencySymbol(sendCur),
                       filled: false,
