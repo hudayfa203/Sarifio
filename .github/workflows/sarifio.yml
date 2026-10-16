@@ -10,12 +10,15 @@ on:
         required: false
         default: ""
 
+permissions:
+  contents: write
+
 jobs:
   android-apk:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
         with: { distribution: temurin, java-version: "17" }
       - uses: subosito/flutter-action@v2
         with: { channel: stable, cache: true }
@@ -23,7 +26,24 @@ jobs:
         working-directory: mobile
         env:
           API_BASE_URL: ${{ github.event.inputs.api_base_url }}
-        run: ./tool/build_apk.sh
+        run: |
+          mkdir -p dist
+          set -o pipefail
+          ./tool/build_apk.sh 2>&1 | tee dist/build.log
+      - name: Report build errors on the commit
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo '### Android build failed'
+            echo '```'
+            grep -nE "error|Error|ERROR|FAILED|Exception|What went wrong|Try:" mobile/dist/build.log | head -120
+            echo '--- last 80 lines ---'
+            tail -n 80 mobile/dist/build.log
+            echo '```'
+          } > /tmp/report.md
+          gh api repos/${{ github.repository }}/commits/${{ github.sha }}/comments -F body=@/tmp/report.md
       - uses: actions/upload-artifact@v4
         with:
           name: SARIFIO-Android-Test
@@ -33,7 +53,7 @@ jobs:
   backend-tests:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: shivammathur/setup-php@v2
         with: { php-version: "8.3", extensions: "pdo_sqlite, bcmath", tools: composer }
       - name: Build Laravel app with the SARIFIO overlay
