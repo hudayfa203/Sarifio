@@ -15,6 +15,7 @@ import 'package:sarifio_app/main.dart';
 import 'package:sarifio_app/screens/activity/receipt_screen.dart';
 import 'package:sarifio_app/screens/auth/otp_screen.dart';
 import 'package:sarifio_app/screens/auth/register_screen.dart';
+import 'package:sarifio_app/screens/exchange/exchange_tab.dart';
 import 'package:sarifio_app/screens/exchange/progress_screen.dart';
 import 'package:sarifio_app/screens/home/home_shell.dart';
 import 'package:sarifio_app/screens/onboarding_screen.dart';
@@ -90,11 +91,17 @@ Future<void> _tapText(WidgetTester t, String text, {bool last = false}) async {
   await t.pump(const Duration(milliseconds: 600));
 }
 
-Future<void> _scrollTap(WidgetTester t, String text) async {
-  final f = find.text(text);
-  await t.scrollUntilVisible(f.last, 250, scrollable: find.byType(Scrollable).first, maxScrolls: 30);
+Finder _inEx(Finder f) => find.descendant(of: find.byType(ExchangeTab), matching: f);
+Finder get _exScroll => _inEx(find.byType(Scrollable)).first;
+
+Future<void> _scrollTo(WidgetTester t, String text) async {
+  await t.scrollUntilVisible(_inEx(find.text(text)), 250, scrollable: _exScroll, maxScrolls: 30);
   await t.pump(const Duration(milliseconds: 300));
-  await t.tap(f.last, warnIfMissed: false);
+}
+
+Future<void> _scrollTap(WidgetTester t, String text) async {
+  await _scrollTo(t, text);
+  await t.tap(_inEx(find.text(text)), warnIfMissed: false);
   await t.pump(const Duration(milliseconds: 600));
 }
 
@@ -185,21 +192,22 @@ void main() {
       await fill('Sahal', 'eDahab', '100', '623456789');
       await _scrollTap(t, st.s.t('get_quote'));
       await _settleQuote(t);
-      await t.drag(find.byType(Scrollable).first, const Offset(0, 2000));
+      await t.drag(_exScroll, const Offset(0, 2000));
       await t.pump(const Duration(milliseconds: 400));
     });
     await show(st, const HomeShell(), '07b-quote-summary', act: () async {
       await fill('Sahal', 'eDahab', '100', '623456789');
       await _scrollTap(t, st.s.t('get_quote'));
       await _settleQuote(t);
-      await t.scrollUntilVisible(find.text(st.s.t('exchange_now')).last, 250, scrollable: find.byType(Scrollable).first, maxScrolls: 30);
+      await _scrollTo(t, st.s.t('exchange_now'));
     });
     await show(st, const HomeShell(), '08-confirm', act: () async {
       await fill('EVC Plus', 'M-Pesa', '250', '712345678');
       await _scrollTap(t, st.s.t('get_quote'));
       await _settleQuote(t);
       await _scrollTap(t, st.s.t('exchange_now'));
-      await t.pump(const Duration(milliseconds: 600));
+      await t.pump(const Duration(milliseconds: 800));
+      await t.pump(const Duration(milliseconds: 800));
     });
 
     // progress + receipt from API-created exchanges
