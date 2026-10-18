@@ -1,0 +1,695 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="SARIFIO test environment: website and admin dashboard with simulated exchanges. No real money moves.">
+<meta name="robots" content="noindex">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='12 12 40 40'%3E%3Cpath d='M50 12H27A15 15 0 0 0 12 27V38H24V27A3 3 0 0 1 27 24H50Z' fill='%230B1B33'/%3E%3Cpath d='M14 52H37A15 15 0 0 0 52 37V26H40V37A3 3 0 0 1 37 40H14Z' fill='%2314B8A0'/%3E%3C/svg%3E">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<title>SARIFIO Test Environment</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one shell, two worlds — the public sarifio.com website and the admin.sarifio.com dashboard — sharing one live test ledger. */
+:root{
+  --ink:#0B1B33; --blue:#2458F2; --teal:#14B8A0; --teal-dk:#0C6B5C;
+  --bg:#F4F6F9; --card:#FFFFFF; --line:#DFE5EE; --chip:#EEF2F7;
+  --fg:#0B1B33; --fg2:#55657E; --hero:#0B1B33; --hero-fg:#FFFFFF; --hero-fg2:#B9C6DA;
+  --amber-bg:#FBF1E2; --amber:#8A5A12; --ok-bg:#E7F7F3; --ok:#0C6B5C; --bad-bg:#FBE7E8; --bad:#A82E33; --mute-bg:#EEF0F4; --mute:#3E4C63;
+  --side:#0B1B33; --side-fg:#C9D4E5;
+  --f-display:"Sora", "Manrope", system-ui, sans-serif;
+  --f-body:"Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#070F1E; --card:#0F1C31; --line:#1E2D47; --chip:#16253D; --fg:#EEF2F8; --fg2:#9FB0C8; --hero:#12295A;
+  --amber-bg:#3A2A10; --amber:#F1C27A; --ok-bg:#0E3B35; --ok:#5FD9C4; --bad-bg:#3D1719; --bad:#F2A2A5; --mute-bg:#1E2D47; --mute:#C9D4E5;
+  --side:#050B16; --blue:#5B85FF; --teal-dk:#5FD9C4; color-scheme:dark }}
+:root[data-theme="dark"]{
+  --bg:#070F1E; --card:#0F1C31; --line:#1E2D47; --chip:#16253D; --fg:#EEF2F8; --fg2:#9FB0C8; --hero:#12295A;
+  --amber-bg:#3A2A10; --amber:#F1C27A; --ok-bg:#0E3B35; --ok:#5FD9C4; --bad-bg:#3D1719; --bad:#F2A2A5; --mute-bg:#1E2D47; --mute:#C9D4E5;
+  --side:#050B16; --blue:#5B85FF; --teal-dk:#5FD9C4; color-scheme:dark }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.5}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--amber-bg)}
+button,input,select,textarea{font:inherit;color:inherit}
+h1,h2,h3{font-family:var(--f-display);letter-spacing:-.02em;text-wrap:balance;margin:0}
+a{color:var(--blue)}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.wrap{max-width:1200px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--f-mono);font-size:.92em}
+.muted{color:var(--fg2)}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.grow{flex:1 1 auto;min-width:0}
+
+/* test strip + mode switch */
+.strip{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--amber-bg);color:var(--amber);border-bottom:1px solid var(--line)}
+.strip .wrap{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding-block:8px}
+.strip b{font-weight:800;letter-spacing:.06em;font-size:12px}
+.seg{display:inline-flex;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:3px;margin-left:auto}
+.seg button{border:0;background:transparent;border-radius:9px;padding:7px 14px;font-weight:800;font-size:13px;cursor:pointer;color:var(--fg2)}
+.seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+
+/* shared bits */
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px}
+.pad{padding:18px 20px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:14px;padding:0 20px;height:48px;font-weight:800;cursor:pointer;background:var(--ink);color:#fff;text-decoration:none}
+:root[data-theme="dark"] .btn.primary,.btn.light{background:#fff;color:#0B1B33}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .btn.primary{background:#fff;color:#0B1B33}}
+.btn.teal{background:var(--teal);color:#04231E}
+.btn.ghost{background:transparent;border:1.5px solid var(--line);color:var(--fg)}
+.btn.sm{height:36px;padding:0 12px;border-radius:10px;font-size:13px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.pill{display:inline-block;padding:3px 9px;border-radius:999px;font-weight:800;font-size:12px;white-space:nowrap}
+.p-ok{background:var(--ok-bg);color:var(--ok)} .p-bad{background:var(--bad-bg);color:var(--bad)} .p-warn{background:var(--amber-bg);color:var(--amber)} .p-mute{background:var(--mute-bg);color:var(--mute)} .p-blue{background:color-mix(in srgb,var(--blue) 16%,transparent);color:var(--blue)}
+label.f{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:700;color:var(--fg2)}
+.in{height:46px;border:1.5px solid var(--line);border-radius:12px;padding:0 12px;background:var(--card);min-width:0}
+textarea.in{height:auto;padding:10px 12px}
+.kv{display:flex;justify-content:space-between;gap:12px;padding:6px 0;font-size:14px}
+.kv span:first-child{color:var(--fg2)} .kv span:last-child{font-weight:700;text-align:right}
+.kv.big span{font-weight:800;color:var(--fg);font-size:15.5px}
+hr{border:0;border-top:1px solid var(--line);margin:8px 0}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-size:12px;color:var(--fg2);font-weight:700;padding:10px 12px;background:color-mix(in srgb,var(--chip) 60%,transparent)}
+td{padding:11px 12px;border-top:1px solid var(--line);vertical-align:middle}
+.tablebox{overflow-x:auto}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:12px;font-weight:700;z-index:50;max-width:calc(100% - 32px)}
+.modal{position:fixed;inset:0;background:rgba(5,11,22,.55);display:flex;align-items:center;justify-content:center;z-index:40;padding:16px}
+.modal .card{max-width:480px;width:100%;max-height:90vh;overflow:auto}
+.mark{width:30px;height:30px;flex:none}
+
+/* website */
+.site-nav{display:flex;align-items:center;gap:18px;flex-wrap:wrap;padding-block:18px}
+.site-nav a.nl{color:var(--hero-fg2);text-decoration:none;font-weight:600;font-size:14.5px;cursor:pointer}
+.site-nav a.nl[aria-current="page"]{color:#fff}
+.wordmark{font-family:var(--f-display);font-weight:600;letter-spacing:.14em;font-size:18px}
+.hero{background:var(--hero);color:var(--hero-fg);position:relative;overflow:hidden}
+.hero .bgmark{position:absolute;right:-180px;top:-120px;width:620px;height:620px;opacity:.14;pointer-events:none}
+.hero-grid{display:flex;flex-wrap:wrap;gap:40px;align-items:center;padding-block:40px 72px;position:relative}
+.hero h1{font-size:clamp(36px,6vw,62px);line-height:1.04}
+.hero p{color:var(--hero-fg2);font-size:18px;max-width:520px}
+.calc{width:420px;max-width:100%;background:var(--card);color:var(--fg);border-radius:24px;padding:22px;display:flex;flex-direction:column;gap:12px;box-shadow:0 40px 80px -30px rgba(0,0,0,.6)}
+.sec{padding-block:64px}
+.sec h2{font-size:clamp(26px,3.6vw,38px)}
+.eyebrow{font-size:12.5px;font-weight:800;letter-spacing:.14em;color:var(--blue);text-transform:uppercase}
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.footer{background:#070F1E;color:#9FB0C8}
+.footer a{color:#C9D4E5;text-decoration:none}
+
+/* admin */
+.admin{display:flex;flex-wrap:wrap;min-height:calc(100vh - 50px)}
+.side{flex:1 1 230px;max-width:100%;background:var(--side);color:var(--side-fg);padding-block:18px;padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:14px;display:flex;flex-direction:column;gap:16px}
+.side nav{display:flex;flex-direction:column;gap:2px}
+.side button{all:unset;cursor:pointer;display:flex;gap:10px;align-items:center;padding:10px 12px;border-radius:10px;font-weight:600;font-size:14px}
+.side button[aria-current="page"]{background:rgba(255,255,255,.09);color:#fff;font-weight:800}
+.side button:focus-visible{outline:2px solid #5B85FF}
+.main{flex:999 1 560px;min-width:0;padding-block:22px;padding-left:clamp(16px,3vw,32px);padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:18px}
+.kpis{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.kpi{padding:14px 16px;display:flex;flex-direction:column;gap:4px}
+.kpi .v{font-family:var(--f-display);font-size:24px;font-weight:600}
+.kpi.dark{background:var(--ink);color:#fff;border-color:transparent} .kpi.dark .muted{color:#9FB0C8}
+.bars{display:flex;align-items:flex-end;gap:6px;height:150px;border-bottom:1px solid var(--line)}
+.bars div{flex:1;background:color-mix(in srgb,var(--blue) 35%,transparent);border-radius:5px 5px 0 0;min-height:2px}
+.bars div.hi{background:var(--blue)}
+.provgrid{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.switch{position:relative;width:44px;height:26px;border-radius:99px;border:0;background:var(--line);cursor:pointer;flex:none}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .15s}
+.switch[aria-checked="true"]{background:var(--teal)} .switch[aria-checked="true"]::after{left:21px}
+@media (max-width:760px){.side{flex-basis:100%;padding-block:12px;gap:10px}.side nav{flex-direction:row;overflow-x:auto;gap:4px;padding-bottom:4px}.side nav button{white-space:nowrap;padding:8px 12px}.side>div:last-child{flex-direction:row;margin-top:0}}
+.dl{background:#0B1B33;color:#fff;border-top:1px solid #1E2D47}
+.dl-grid{display:flex;flex-wrap:wrap;gap:40px;align-items:center}
+.store{display:inline-flex;align-items:center;gap:12px;min-height:58px;padding:8px 16px;border-radius:14px;background:#fff;color:#0B1B33;text-decoration:none;border:1.5px solid #fff}
+.store svg{width:24px;height:24px;flex:none}
+.store span{display:flex;flex-direction:column;line-height:1.15}.store small{font-size:11.5px;font-weight:600;opacity:.7}.store b{font-family:var(--f-display);font-size:17px}
+.store em{font-style:normal;font-size:11px;font-weight:800;padding:3px 7px;border-radius:99px;background:#E7F7F3;color:#0C6B5C}
+.store.off{background:transparent;color:#C9D4E5;border-color:#33456A;cursor:default}.store.off em{background:#1E2D47;color:#C9D4E5}
+.phone{flex:0 1 280px;max-width:100%;margin-inline:auto;border-radius:38px;padding:10px;background:#1B2A44;box-shadow:0 40px 80px -30px rgba(0,0,0,.7)}
+.phone-in{border-radius:30px;background:#0A1528;padding:20px 14px 26px;display:flex;flex-direction:column;gap:10px;min-height:420px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="strip" role="note">
+  <div class="wrap">
+    <b>TEST ENVIRONMENT</b><span>Simulated exchanges only — no real money moves. Test data is saved in this browser only.</span>
+    <div class="seg" role="group" aria-label="Choose what to view">
+      <button id="m-web" aria-pressed="true" data-mode="website">Website</button>
+      <button id="m-admin" aria-pressed="false" data-mode="admin">Admin dashboard</button>
+    </div>
+  </div>
+</div>
+<div id="app"></div>
+<div id="layer"></div>
+
+<script>
+// ---------------------------------------------------------------- reference data
+const PROVIDERS = [
+  {code:'sahal',name:'Sahal',group:'WaafiPay',country:'SO',cur:'USD',collect:true,payout:true,fields:['API base URL','Merchant UID','API user ID','API key']},
+  {code:'evc_plus',name:'EVC Plus',group:'WaafiPay',country:'SO',cur:'USD',collect:true,payout:true,fields:['API base URL','Merchant UID','API user ID','API key']},
+  {code:'edahab',name:'eDahab',group:null,country:'SO',cur:'USD',collect:true,payout:true,fields:['API base URL','Merchant / agent code','API key','API secret']},
+  {code:'premier_wallet',name:'Premier Wallet',group:null,country:'SO',cur:'USD',collect:true,payout:true,fields:['API base URL','Merchant ID','API key','API secret']},
+  {code:'ebirr',name:'eBirr',group:null,country:'ET',cur:'ETB',collect:true,payout:true,fields:['API base URL','Merchant ID / short code','Client ID','Client secret']},
+  {code:'mpesa',name:'M-Pesa',group:null,country:'KE',cur:'KES',collect:true,payout:true,fields:['Daraja base URL','Consumer key','Consumer secret','Business short code','STK passkey','B2C initiator']},
+  {code:'binance',name:'Binance',group:null,country:'—',cur:'USD',collect:false,payout:false,fields:['API base URL','API key','API secret']},
+  {code:'visa',name:'Visa',group:'Card processor',country:'—',cur:'USD',collect:true,payout:false,fields:['Processor name','API base URL','Publishable key','Secret key']},
+];
+const P = Object.fromEntries(PROVIDERS.map(p=>[p.code,p]));
+const SOMALI = ['sahal','evc_plus','edahab','premier_wallet'];
+const ROUTES = (()=>{const r=[['sahal','edahab'],['sahal','premier_wallet'],['edahab','sahal'],['premier_wallet','sahal'],['evc_plus','edahab'],['evc_plus','premier_wallet'],['edahab','evc_plus'],['premier_wallet','evc_plus'],['edahab','premier_wallet'],['premier_wallet','edahab'],['ebirr','mpesa'],['mpesa','ebirr']];SOMALI.forEach(w=>r.push([w,'ebirr'],['ebirr',w],[w,'mpesa'],['mpesa',w]));return r})();
+// SANDBOX TEST RATES — illustrative, not market rates. Editable in Admin → Exchange management.
+const DEFAULT_RATES = {'USD>ETB':[125000000,50],'ETB>USD':[8000,50],'USD>KES':[129000000,50],'KES>USD':[7750,50],'ETB>KES':[1032000,50],'KES>ETB':[969000,50]};
+const SYM = {USD:'$',ETB:'Br ',KES:'KSh '};
+const STATUS = {created:'Created',quoted:'Quoted',awaiting_payment:'Awaiting payment',payment_verified:'Payment verified',payout_processing:'Sending',settled:'Completed',failed:'Failed',cancelled:'Cancelled',manual_review:'Under review',refunded:'Refunded'};
+const PSTATUS = {not_configured:'Not Configured',sandbox:'Sandbox Ready',testing:'Testing',awaiting_approval:'Awaiting Provider Approval',live:'Live',disabled:'Disabled',error:'Error'};
+
+// ---------------------------------------------------------------- fee engine (same integer maths as the app and API)
+const feeMinor=(a,bps)=>a<=0||bps<=0?0:Math.floor((a*bps+5000)/10000);
+const conv=(m,r)=>m<=0?0:Math.floor((m*r+500000)/1000000);
+const applied=(mid,s)=>Math.floor((mid*(10000-s)+5000)/10000);
+function rateFor(a,b){ if(a===b) return [1000000,0]; return state.rates[a+'>'+b]||null; }
+function quote(from,to,amount){
+  const fc=P[from].cur, tc=P[to].cur, r=rateFor(fc,tc); if(!r) return null;
+  const route=state.routes[from+'>'+to]||{enabled:false,pfee:0};
+  const fee=feeMinor(amount,state.fee), pfee=feeMinor(amount,route.pfee||0), net=Math.max(0,amount-fee-pfee);
+  const rate=applied(r[0],r[1]), receive=conv(net,rate), diff=conv(net,r[0])-receive;
+  return {from,to,cur:fc,rcur:tc,amount,feeBps:state.fee,fee,pfee,net,mid:r[0],rate,receive,diff};
+}
+const money=(m,c)=>(m<0?'−':'')+SYM[c]+(Math.abs(m)/100).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const rateTxt=(r)=>(r/1e6).toLocaleString('en-US',{maximumFractionDigits:r<1e6?5:2,minimumFractionDigits:2});
+const parseAmt=(s)=>{const m=String(s).replace(/,/g,'').trim().match(/^(\d{1,9})(?:\.(\d{0,2}))?$/);return m?parseInt(m[1])*100+parseInt((m[2]||'').padEnd(2,'0')||'0'):null};
+const big=(m)=>{const a=Math.abs(m)/100,sg=m<0?'−':'';return a>=1e6?sg+'$'+(a/1e6).toFixed(2)+'M':a>=1e4?sg+'$'+(a/1e3).toFixed(1)+'K':money(m,'USD');};
+const esc=(s)=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rid=(p)=>p+Math.random().toString(36).slice(2,10).toUpperCase();
+const fmtDate=(t)=>new Date(t).toLocaleString('en-GB',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
+function usd(m,c){ if(c==='USD') return m; const r=rateFor(c,'USD'); return r?conv(m,r[0]):0; }
+
+// ---------------------------------------------------------------- status machine (time-based, so every viewer sees the same progress)
+const PLAN={success:[[3000,'payment_verified'],[5500,'payout_processing'],[8500,'settled']],fail_payment:[[4000,'failed']],fail_payout:[[3000,'payment_verified'],[5500,'payout_processing'],[8500,'failed'],[12000,'refunded']],manual_review:[[3000,'payment_verified'],[5500,'manual_review']]};
+const REASON={fail_payment:'The sending provider declined the payment (simulated).',fail_payout:'The receiving provider rejected the payout. The money was returned (simulated).',manual_review:'Held for review by the operations team (simulated).'};
+function live(tx){
+  const now=Date.now(), ev=[{s:'created',at:tx.createdAt},{s:'awaiting_payment',at:tx.createdAt}];
+  for(const [ms,s] of PLAN[tx.outcome]||PLAN.success){ if(now-tx.createdAt>=ms) ev.push({s,at:tx.createdAt+ms}); }
+  if(tx.resolution) ev.push({s:tx.resolution.status,at:tx.resolution.at});
+  const status=ev[ev.length-1].s;
+  return {...tx,events:ev,status,reason:(status==='settled'?null:(tx.resolution?.note||REASON[tx.outcome]||null))};
+}
+const pillFor=(s)=>s==='settled'?'p-ok':(s==='failed'||s==='cancelled')?'p-bad':s==='refunded'?'p-mute':'p-warn';
+
+// ---------------------------------------------------------------- state & storage
+const state={
+  mode:'website', page:'home', tab:'overview',
+  fee:100, feeHistory:[], rates:{...DEFAULT_RATES},
+  routes:Object.fromEntries(ROUTES.map(([a,b])=>[a+'>'+b,{enabled:true,pfee:b==='mpesa'?50:0}])),
+  providers:Object.fromEntries(PROVIDERS.map(p=>[p.code,{status:['binance','visa'].includes(p.code)?'not_configured':'sandbox',enabled:!['binance','visa'].includes(p.code),creds:{sandbox:[],production:[]},approvals:{api:false,agreement:false,regulatory:false},lastTest:null,logs:[]}])),
+  company:{name:'SARIFIO',tagline:'One App. Every Exchange.',website:'sarifio.com',email:'info@sarifio.com',support:'support@sarifio.com',phone:'+252906793240',whatsapp:'+252906793240'},
+  tx:[], tickets:[], expenses:[],
+  session:null, otp:null, calc:{from:'sahal',to:'edahab',amount:'100.00'}, ex:{from:'sahal',to:'ebirr',amount:'100.00',account:'',name:'',outcome:'success'},
+  txFilter:'all', saved:true, custQ:'',
+  // Opening float per SARIFIO wallet account (minor units of that wallet's currency) — test values
+  float:{evc_plus:2100000,edahab:1800000,sahal:1200000,premier_wallet:900000,ebirr:125000000,mpesa:129000000},
+};
+try{ state.session=JSON.parse(localStorage.getItem('sarifio_test_session')||'null'); }catch(e){}
+let db=null;
+async function connect(){
+  db = await (window.claude?.use?.('db') ?? null);
+  if(!db){ loadLocal(); return; }
+  const watch=(col,fn)=>db.collection(col).onSnapshot(s=>{fn(s.docs.map(d=>({id:d.id,...d.data()})));render();},()=>{});
+  let swept=false;
+  watch('tx',rows=>{state.tx=rows.sort((a,b)=>b.createdAt-a.createdAt);
+    // one-off tidy: older demo batches used random ids and duplicate the standard demo set
+    if(!swept){swept=true;const legacy=rows.filter(t=>t.demo&&!t.id.startsWith('tx_demo'));
+      (async()=>{for(let i=0;i<legacy.length;i+=25) await Promise.all(legacy.slice(i,i+25).map(t=>db.doc('tx/'+t.id).delete().catch(()=>{})));})();}
+  });
+  const tidy=(col,rows,test)=>{const legacy=rows.filter(r=>!r.id.includes('_demo')&&test(r));(async()=>{for(let i=0;i<legacy.length;i+=25) await Promise.all(legacy.slice(i,i+25).map(r=>db.doc(col+'/'+r.id).delete().catch(()=>{})));})();};
+  let sweptT=false,sweptE=false;
+  watch('tickets',rows=>{state.tickets=rows.sort((a,b)=>b.createdAt-a.createdAt); if(!sweptT){sweptT=true;tidy('tickets',rows,r=>['Where is my exchange?','M-Pesa limit','Refund question'].includes(r.subject)&&['Amina Yusuf','John Kamau','Hodan Warsame'].includes(r.name));}});
+  watch('expenses',rows=>{state.expenses=rows.sort((a,b)=>b.date.localeCompare(a.date)); if(!sweptE){sweptE=true;tidy('expenses',rows,r=>['Staging server — monthly','SMS OTP bundle','Facebook launch ads','Office internet — October'].includes(r.title));}});
+  db.collection('config').onSnapshot(s=>{
+    for(const d of s.docs){ const v=d.data();
+      if(d.id==='fee'){state.fee=v.bps;state.feeHistory=v.history||[];}
+      if(d.id==='rates') state.rates={...DEFAULT_RATES,...v.pairs};
+      if(d.id==='routes') state.routes={...state.routes,...v.routes};
+      if(d.id==='company') state.company={...state.company,...v};
+      if(d.id==='float') state.float={...state.float,...v.wallets};
+      if(d.id==='providers') for(const k in v.p) state.providers[k]={...state.providers[k],...v.p[k]};
+    } render();
+  },()=>{});
+}
+const LS='sarifio_test_db_v1';
+function saveLocal(){ if(db) return; try{ localStorage.setItem(LS, JSON.stringify({tx:state.tx,tickets:state.tickets,expenses:state.expenses,fee:state.fee,feeHistory:state.feeHistory,rates:state.rates,routes:state.routes,company:state.company,providers:state.providers,float:state.float})); state.saved=true; }catch(e){ state.saved=false; } }
+function loadLocal(){ let d=null; try{ d=JSON.parse(localStorage.getItem(LS)||'null'); }catch(e){}
+  if(d){ Object.assign(state,d); state.saved=true; }
+  else { const s=demoSet(Date.now()); state.tx=s.tx.map(x=>({id:x.id,...x.data})).sort((a,b)=>b.createdAt-a.createdAt);
+    state.tickets=s.tickets.map(x=>({id:x.id,...x.data})).sort((a,b)=>b.createdAt-a.createdAt);
+    state.expenses=s.expenses.map(x=>({id:x.id,...x.data})).sort((a,b)=>b.date.localeCompare(a.date)); saveLocal(); }
+  render(); }
+async function put(col,id,data){ if(db){ try{ await db.doc(col+'/'+id).set(data); }catch(e){ toast(e.code==='quota_exceeded'?'Storage is full — remove old test data.':'Could not save. Try again.'); } } else { const arr=state[col]; const i=arr.findIndex(x=>x.id===id); if(i>=0) arr[i]={id,...data}; else arr.unshift({id,...data}); saveLocal(); render(); } }
+async function del(col,id){ if(db){ try{ await db.doc(col+'/'+id).delete(); }catch(e){} } else { state[col]=state[col].filter(x=>x.id!==id); saveLocal(); render(); } }
+async function putConfig(id,data){ if(db){ try{ await db.doc('config/'+id).set(data); }catch(e){ toast('Could not save. Try again.'); } } else { saveLocal(); render(); } }
+const saveProviders=()=>putConfig('providers',{p:state.providers});
+
+// ---------------------------------------------------------------- UI helpers
+const mark=(a='#FFFFFF',b='#14B8A0',cls='mark')=>`<svg class="${cls}" viewBox="12 12 40 40" aria-hidden="true"><path d="M50 12H27A15 15 0 0 0 12 27V38H24V27A3 3 0 0 1 27 24H50Z" fill="${a}"/><path d="M14 52H37A15 15 0 0 0 52 37V26H40V37A3 3 0 0 1 37 40H14Z" fill="${b}"/></svg>`;
+function toast(msg){ const t=document.createElement('div'); t.className='toast'; t.setAttribute('role','status'); t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2600); }
+function modal(html){ document.getElementById('layer').innerHTML=`<div class="modal" data-act="close-bg"><div class="card pad" role="dialog" aria-modal="true">${html}</div></div>`; }
+const closeModal=()=>{openReceipt=null;document.getElementById('layer').innerHTML='';};
+const provOpts=(sel,filter)=>PROVIDERS.filter(filter).map(p=>`<option value="${p.code}" ${p.code===sel?'selected':''}>${p.name}${p.cur!=='USD'?' · '+p.cur:''}${p.group&&p.group!=='Card processor'?' ('+p.group+')':''}</option>`).join('');
+const usable=(c)=>{const s=state.providers[c];return s.enabled&&['sandbox','testing'].includes(s.status);};
+const routeOk=(a,b)=>a!==b&&usable(a)&&usable(b)&&P[a].collect&&P[b].payout&&state.routes[a+'>'+b]?.enabled&&rateFor(P[a].cur,P[b].cur);
+function quoteBlock(q){ if(!q) return `<p class="muted">This route has no exchange rate yet.</p>`; return `
+  <div class="kv"><span>Exchange amount</span><span class="num">${money(q.amount,q.cur)}</span></div>
+  <div class="kv"><span>SARIFIO fee (${state.fee/100}%)</span><span class="num">−${money(q.fee,q.cur)}</span></div>
+  <div class="kv"><span>Provider charges</span><span class="num">${q.pfee?'−'+money(q.pfee,q.cur):'None'}</span></div>
+  <div class="kv"><span>Exchange rate</span><span class="num">${q.cur===q.rcur?'Same currency':'1 '+q.cur+' = '+rateTxt(q.rate)+' '+q.rcur}</span></div>
+  ${q.cur!==q.rcur?`<div class="kv"><span>Exchange-rate difference</span><span class="num">−${money(q.diff,q.rcur)}</span></div>`:''}
+  <hr><div class="kv big"><span>They receive</span><span class="num">${money(q.receive,q.rcur)}</span></div>`; }
+
+// ================================================================= WEBSITE
+function siteNav(){
+  const link=(p,l)=>`<a class="nl" href="#${p}" data-page="${p}" ${state.page===p?'aria-current="page"':''}>${l}</a>`;
+  return `<div class="wrap site-nav">
+    <a href="#home" data-page="home" class="row" style="color:#fff;text-decoration:none;gap:10px">${mark()}<span class="wordmark">${esc(state.company.name)}</span></a>
+    <div class="row grow" style="justify-content:flex-end;gap:18px">${link('home','Home')}${link('exchange','Exchange')}${link('fees','Fees')}${link('contact','Contact')}
+    ${state.session?`${link('account','My account')}<button class="btn sm light" data-act="logout">Log out</button>`:`<button class="btn sm light" data-page="login">Log in / Sign up</button>`}</div></div>`;
+}
+function siteFooter(){ const c=state.company; return `<footer class="footer"><div class="wrap row" style="padding-block:36px;justify-content:space-between;gap:24px">
+  <div class="row" style="gap:10px">${mark()}<div><div class="wordmark" style="color:#fff;font-size:15px">${esc(c.name)}</div><div>${esc(c.tagline)}</div></div></div>
+  <div style="display:flex;flex-direction:column;gap:4px;font-size:14px"><span>${esc(c.website)}</span><span>${esc(c.email)} · ${esc(c.support)}</span><span class="num">Phone / WhatsApp ${esc(c.phone)}</span></div>
+  <div style="font-size:13px">© 2026 ${esc(c.name)}. All rights reserved.</div></div></footer>`; }
+function calcCard(){
+  const c=state.calc, amt=parseAmt(c.amount)||0, ok=routeOk(c.from,c.to), q=ok?quote(c.from,c.to,amt):null;
+  return `<form class="calc" data-form="calc"><div class="row"><b class="grow">Exchange calculator</b><span class="pill p-blue">${state.fee/100}% fee</span></div>
+   <div class="row" style="align-items:stretch"><label class="f grow">You send with<select class="in" id="c-from" data-calc="from">${provOpts(c.from,p=>p.collect&&usable(p.code))}</select></label>
+   <label class="f grow">They receive in<select class="in" id="c-to" data-calc="to">${provOpts(c.to,p=>p.payout&&usable(p.code))}</select></label></div>
+   <label class="f">Amount (${P[c.from].cur})<input class="in num" id="c-amt" inputmode="decimal" data-calc="amount" value="${esc(c.amount)}"></label>
+   <div style="background:var(--chip);border-radius:14px;padding:12px 14px">${ok?quoteBlock(q):'<p class="muted" style="margin:0">This route is not available. Choose a different pair.</p>'}</div>
+   <button class="btn" type="button" data-page="exchange">Exchange Now</button>
+   <small class="muted" style="text-align:center">Birr and shilling rates here are test rates.</small></form>`;
+}
+function pageHome(){
+  return `<section class="hero"><svg class="bgmark" viewBox="12 12 40 40" aria-hidden="true"><path d="M50 12H27A15 15 0 0 0 12 27V38H24V27A3 3 0 0 1 27 24H50Z" fill="#2458F2"/><path d="M14 52H37A15 15 0 0 0 52 37V26H40V37A3 3 0 0 1 37 40H14Z" fill="#14B8A0"/></svg>
+   ${siteNav()}<div class="wrap hero-grid"><div class="grow" style="flex:1 1 420px;display:flex;flex-direction:column;gap:20px">
+   <h1>Your Money. Your Choice. One App.</h1>
+   <p>Experience a simpler way to exchange money across supported digital payment services. SARIFIO brings convenience, transparency, and a modern exchange experience together in one platform.</p>
+   <div class="row"><button class="btn teal" data-page="exchange">Exchange Now</button><button class="btn ghost" style="color:#fff;border-color:rgba(255,255,255,.3)" data-page="fees">Explore SARIFIO</button></div></div>
+   <div style="flex:1 1 360px;display:flex;justify-content:center;min-width:0">${calcCard()}</div></div></section>
+  <section class="sec"><div class="wrap" style="display:flex;flex-direction:column;gap:24px">
+   <div><div class="eyebrow">One App. Every Exchange.</div><h2>Every wallet you use, in one place.</h2><p class="muted" style="max-width:640px">Whether you use Sahal, EVC Plus, eDahab, Premier Wallet, eBirr, M-Pesa or other supported services, SARIFIO is designed to make managing digital exchanges easier.</p></div>
+   <div class="grid">${PROVIDERS.map(p=>{const s=state.providers[p.code];const st=usable(p.code)?['Available in Test Mode','p-ok']:(['disabled','error'].includes(s.status)?['Temporarily unavailable','p-bad']:['Coming soon','p-warn']);return `<div class="card pad" style="display:flex;flex-direction:column;gap:6px"><span class="muted" style="font-size:12px;font-weight:800;letter-spacing:.1em">${esc(p.group||(p.country==='ET'?'ETHIOPIA · ETB':p.country==='KE'?'KENYA · KES':'SOMALIA · USD'))}</span><h3 style="font-size:19px">${p.name}</h3><span class="pill ${st[1]}" style="align-self:flex-start">${st[0]}</span></div>`}).join('')}</div>
+   <p class="muted" style="font-size:13px">Integrations are planned and subject to technical and commercial approval. No partnership is implied.</p></div></section>
+  <section class="sec" style="background:var(--card);border-block:1px solid var(--line)"><div class="wrap" style="display:flex;flex-direction:column;gap:24px">
+   <div><div class="eyebrow">Why choose SARIFIO</div><h2>Built for clarity.</h2></div>
+   <div class="grid">${[['Simple Exchange','Move between supported payment services through a clear and easy-to-use exchange experience.'],['Transparent Pricing','Review exchange amounts, the SARIFIO service fee, and any applicable additional charges before confirming.'],['Designed for Convenience','Access SARIFIO through your smartphone or web browser.'],['Transaction Tracking','Stay informed with clear transaction statuses and accessible transaction history.'],['Customer Support','Get assistance through our official support channels.'],['Built for the Future','SARIFIO is designed to support additional financial services and integrations as the platform grows.']].map(([t,b])=>`<div class="card pad" style="background:var(--bg)"><h3 style="font-size:18px;margin-bottom:6px">${t}</h3><p class="muted" style="margin:0">${b}</p></div>`).join('')}</div></div></section>
+  <section class="sec dl"><div class="wrap dl-grid">
+   <div style="flex:1 1 380px;min-width:0;display:flex;flex-direction:column;gap:16px">
+    <div class="eyebrow" style="color:var(--teal)">Get the app</div>
+    <h2 style="color:#fff">SARIFIO in your pocket.</h2>
+    <p style="color:#B9C6DA;max-width:520px;margin:0">Exchange between your wallets, follow every status and keep your receipts — all from your phone. Sign up with just your name and phone number.</p>
+    <div class="row" style="gap:12px">
+     <a class="store" href="https://github.com/hudayfa203/Sarifio/releases" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0-5-5m5 5 5-5M5 20h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span><small>Download for</small><b>Android</b></span><em>Test APK</em></a>
+     <span class="store off" aria-disabled="true"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10.5 18.5h3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span><small>Coming soon for</small><b>iPhone</b></span><em>TestFlight</em></span>
+    </div>
+    <small style="color:#7F91AE">Android test build is available now and runs in Test Mode. The iPhone version follows through TestFlight.</small>
+   </div>
+   <div class="phone" aria-hidden="true"><div class="phone-in">
+    <div class="row" style="gap:8px">${mark('#FFFFFF','#14B8A0','mark')}<b style="font-family:var(--f-display);letter-spacing:.12em;font-size:13px">SARIFIO</b><span class="pill" style="margin-left:auto;background:#3A2A10;color:#F1C27A;font-size:10px">TEST</span></div>
+    <div style="background:#2458F2;border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:4px"><small style="color:#C9D8FF">Send from Sahal</small><b style="font-family:var(--f-display);font-size:24px">$250.00</b><small style="color:#C9D8FF">→ M-Pesa · KSh 31,763.75</small></div>
+    ${[['Sahal → eDahab','$100.00','Completed'],['EVC Plus → M-Pesa','$250.00','Completed'],['eBirr → EVC Plus','Br 6,000.00','Sending']].map(([r,a,st])=>`<div class="row" style="background:#12233D;border-radius:12px;padding:10px 12px;gap:8px;flex-wrap:nowrap"><div class="grow" style="font-size:12px"><b>${r}</b><div style="color:#7F91AE">${st}</div></div><b class="num" style="font-size:12.5px">${a}</b></div>`).join('')}
+   </div></div>
+  </div></section>
+  ${siteFooter()}`;
+}
+function plainHeader(){ return `<section class="hero">${siteNav()}</section>`; }
+function pageFees(){
+  const rows=[1000,5000,10000,50000,100000,500000].map(a=>`<tr><td class="num"><b>${money(a,'USD')}</b></td><td class="num">${money(feeMinor(a,state.fee),'USD')}</td><td class="num">${money(a-feeMinor(a,state.fee),'USD')}</td></tr>`).join('');
+  return plainHeader()+`<section class="sec"><div class="wrap row" style="align-items:flex-start;gap:32px">
+   <div style="flex:1 1 360px;min-width:0"><div class="eyebrow">Fees</div><h2>Simple, Transparent Pricing</h2><p class="muted">SARIFIO's standard exchange service fee is ${state.fee/100}%. Your exchange quote clearly shows the amount, applicable charges, and expected receiving value before you confirm.</p></div>
+   <div class="card tablebox" style="flex:1 1 360px;min-width:0"><table><thead><tr><th>You exchange</th><th>SARIFIO fee</th><th>Before other costs</th></tr></thead><tbody>${rows}</tbody></table></div></div></section>${siteFooter()}`;
+}
+function pageLogin(){
+  const o=state.otp;
+  return plainHeader()+`<section class="sec"><div class="wrap" style="display:flex;justify-content:center"><div class="card pad" style="width:440px;max-width:100%;display:flex;flex-direction:column;gap:14px">
+   ${!o?`<h2 style="font-size:26px">Sign in or create an account</h2><p class="muted" style="margin:0">Just your name and phone number. We'll send a one-time code.</p>
+   <form data-form="otp-req" style="display:flex;flex-direction:column;gap:12px"><label class="f">Full name<input class="in" id="l-name" required minlength="2" placeholder="Hudayfi Mohamed"></label>
+   <label class="f">Phone number<div class="row" style="flex-wrap:nowrap"><select class="in" id="l-cc" style="width:110px"><option>+252</option><option>+251</option><option>+254</option><option>+253</option><option>+971</option></select><input class="in grow" id="l-phone" inputmode="tel" required placeholder="90 000 0000"></div></label>
+   <button class="btn">Continue</button></form>`
+   :`<h2 style="font-size:26px">Enter your code</h2><p class="muted" style="margin:0">We sent a 6-digit code to <b class="num">${esc(o.phone)}</b>.</p>
+   <div class="card pad" style="background:var(--amber-bg);border-color:transparent;color:var(--amber)"><b>TEST MODE — your code</b><div style="font-family:var(--f-display);font-size:26px" class="num">${o.code}</div></div>
+   <form data-form="otp-verify" style="display:flex;flex-direction:column;gap:12px"><label class="f">6-digit code<input class="in num" id="l-code" inputmode="numeric" maxlength="6" required></label><button class="btn">Verify</button></form>
+   <button class="btn ghost sm" data-act="otp-back">Use a different number</button>`}
+  </div></div></section>`+siteFooter();
+}
+function pageExchange(){
+  if(!state.session) return plainHeader()+`<section class="sec"><div class="wrap card pad" style="max-width:520px;text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center"><h2 style="font-size:26px">Sign in to exchange</h2><p class="muted" style="margin:0">Create a free test account with your name and phone number.</p><button class="btn" data-page="login">Log in / Sign up</button></div></section>`+siteFooter();
+  const e=state.ex, amt=parseAmt(e.amount)||0, ok=routeOk(e.from,e.to), q=ok?quote(e.from,e.to,amt):null;
+  return plainHeader()+`<section class="sec"><div class="wrap row" style="align-items:flex-start;gap:24px">
+   <form class="card pad" data-form="exchange" style="flex:1 1 380px;min-width:0;display:flex;flex-direction:column;gap:12px">
+    <h2 style="font-size:26px">New exchange</h2>
+    <div class="row" style="align-items:stretch"><label class="f grow">Send from<select class="in" id="e-from" data-ex="from">${provOpts(e.from,p=>p.collect&&usable(p.code))}</select></label>
+    <label class="f grow">Receive to<select class="in" id="e-to" data-ex="to">${provOpts(e.to,p=>p.payout&&usable(p.code))}</select></label></div>
+    <label class="f">Amount (${P[e.from].cur})<input class="in num" id="e-amt" inputmode="decimal" data-ex="amount" value="${esc(e.amount)}"></label>
+    <label class="f">Receiving account number<input class="in num" id="e-acc" inputmode="tel" data-ex="account" value="${esc(e.account)}" placeholder="${P[e.to].country==='KE'?'+254 7…':P[e.to].country==='ET'?'+251 9…':'+252 6…'}"></label>
+    <label class="f">Receiver name (optional)<input class="in" id="e-name" data-ex="name" value="${esc(e.name)}"></label>
+    <label class="f">Simulate result<select class="in" id="e-out" data-ex="outcome">${[['success','Success'],['fail_payment','Payment fails'],['fail_payout','Payout fails (money returned)'],['manual_review','Manual review']].map(([v,l])=>`<option value="${v}" ${e.outcome===v?'selected':''}>${l}</option>`).join('')}</select></label>
+    <button class="btn" ${ok&&amt>=100?'':'disabled'}>Exchange Now</button></form>
+   <div class="card pad" style="flex:1 1 320px;min-width:0"><h3 style="font-size:18px;margin-bottom:8px">Your quote</h3>${ok?quoteBlock(q):'<p class="muted">This route is not available. Choose a different pair.</p>'}
+    <p class="muted" style="font-size:13px;margin-bottom:0">The ${state.fee/100}% fee is only earned when the exchange completes. Failed or cancelled exchanges are not charged.</p></div></div></section>`+siteFooter();
+}
+function txRows(list,admin){
+  if(!list.length) return `<tr><td colspan="${admin?7:5}" class="muted" style="text-align:center;padding:28px">No exchanges yet.${admin?' Use “Add demo data” to fill the dashboard.':''}</td></tr>`;
+  return list.map(t=>`<tr><td class="mono">${esc(t.ref)}</td>${admin?`<td>${esc(t.customer)}</td>`:''}<td><b>${P[t.from].name} → ${P[t.to].name}</b><div class="muted" style="font-size:12.5px">${fmtDate(t.createdAt)}</div></td><td class="num" style="text-align:right">${money(t.amount,t.cur)}</td>${admin?`<td class="num" style="text-align:right">${t.status==='settled'?money(t.fee,t.cur):'—'}</td>`:''}<td><span class="pill ${pillFor(t.status)}">${STATUS[t.status]}</span></td><td style="text-align:right"><button class="btn ghost sm" data-act="receipt" data-id="${t.id}">View</button></td></tr>`).join('');
+}
+function pageAccount(){
+  if(!state.session) return pageLogin();
+  const mine=state.tx.filter(t=>t.phone===state.session.phone).map(live);
+  return plainHeader()+`<section class="sec"><div class="wrap" style="display:flex;flex-direction:column;gap:16px">
+   <div class="row"><div class="grow"><div class="eyebrow">My account</div><h2>Hello, ${esc(state.session.name.split(' ')[0])}</h2><p class="muted num" style="margin:0">${esc(state.session.phone)} · test account</p></div><button class="btn" data-page="exchange">New exchange</button></div>
+   <div class="card tablebox"><table><thead><tr><th>Reference</th><th>Exchange</th><th style="text-align:right">Amount</th><th>Status</th><th></th></tr></thead><tbody>${txRows(mine,false)}</tbody></table></div>
+   <p class="muted" style="font-size:13px">Exchanges you make here also appear in the admin dashboard.</p></div></section>`+siteFooter();
+}
+function pageContact(){ const c=state.company; return plainHeader()+`<section class="sec"><div class="wrap row" style="align-items:flex-start;gap:24px">
+   <div style="flex:1 1 320px;min-width:0;display:flex;flex-direction:column;gap:10px"><div class="eyebrow">Contact</div><h2>We're Here to Help</h2>
+   <div class="kv"><span>General inquiries</span><span>${esc(c.email)}</span></div><div class="kv"><span>Customer support</span><span>${esc(c.support)}</span></div><div class="kv"><span>Phone</span><span class="num">${esc(c.phone)}</span></div><div class="kv"><span>WhatsApp</span><span class="num">${esc(c.whatsapp)}</span></div><div class="kv"><span>Website</span><span>www.${esc(c.website)}</span></div></div>
+   <form class="card pad" data-form="contact" style="flex:1 1 360px;min-width:0;display:flex;flex-direction:column;gap:12px"><h3 style="font-size:19px">Send us a message</h3>
+   <label class="f">Your name<input class="in" id="ct-name" required value="${esc(state.session?.name||'')}"></label><label class="f">Phone or email<input class="in" id="ct-contact" required value="${esc(state.session?.phone||'')}"></label>
+   <label class="f">Subject<input class="in" id="ct-subj" required minlength="3"></label><label class="f">Message<textarea class="in" id="ct-msg" rows="4" required minlength="5"></textarea></label>
+   <button class="btn">Send message</button><small class="muted">Messages go to the Support inbox in the admin dashboard.</small></form></div></section>`+siteFooter(); }
+
+// ================================================================= ADMIN
+const TABS=[['overview','Executive overview'],['transactions','Transactions'],['liquidity','Liquidity & float'],['customers','Customers'],['integrations','API Integration Manager'],['exchange','Exchange management'],['finance','Finance & revenue'],['support','Customer support'],['audit','Audit log'],['settings','Company settings']];
+function adminShell(inner){
+  return `<div class="admin"><aside class="side"><div class="row" style="gap:10px;padding:0 8px">${mark()}<div><div class="wordmark" style="color:#fff;font-size:14px">SARIFIO</div><div style="font-size:11px;font-weight:800;letter-spacing:.12em;color:#7F91AE">ADMIN · TEST</div></div></div>
+   <nav aria-label="Admin sections">${TABS.map(([k,l])=>`<button data-tab="${k}" ${state.tab===k?'aria-current="page"':''}>${l}</button>`).join('')}</nav>
+   <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px;font-size:12.5px"><button class="btn sm teal" data-act="demo">Add demo data</button><button class="btn sm ghost" style="color:#C9D4E5;border-color:#1E2D47" data-act="clear">Clear test data</button></div></aside>
+   <main class="main">${inner}</main></div>`;
+}
+function stats(){
+  const all=state.tx.map(live), by=s=>all.filter(t=>t.status===s);
+  const settled=by('settled'), vol=settled.reduce((a,t)=>a+usd(t.amount,t.cur),0), fee=settled.reduce((a,t)=>a+usd(t.fee,t.cur),0), fx=settled.reduce((a,t)=>a+usd(t.diff,t.rcur),0);
+  const pending=all.filter(t=>!['settled','failed','refunded','cancelled'].includes(t.status));
+  const customers=new Set(all.map(t=>t.phone)).size;
+  return {all,settled,vol,fee,fx,pending,customers,failed:by('failed').length+by('refunded').length};
+}
+function tabOverview(){
+  const s=stats(); const exp=state.expenses.filter(e=>e.status==='paid'||e.status==='approved').reduce((a,e)=>a+usd(e.amount,e.cur),0);
+  const days=[...Array(30)].map((_,i)=>{const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-29+i);return d.getTime();});
+  const per=days.map(d=>s.settled.filter(t=>t.createdAt>=d&&t.createdAt<d+864e5).reduce((a,t)=>a+usd(t.amount,t.cur),0));
+  const max=Math.max(1,...per);
+  const byProv=PROVIDERS.map(p=>({p,n:s.settled.filter(t=>t.from===p.code).length,v:s.settled.filter(t=>t.from===p.code).reduce((a,t)=>a+usd(t.fee,t.cur),0)})).filter(x=>x.n);
+  return `<div class="row"><div class="grow"><h1 style="font-size:26px">Executive overview</h1><p class="muted" style="margin:0">Sandbox data · amounts in USD equivalent at test rates</p></div></div>
+   <div class="card pad" style="background:var(--amber-bg);border-color:transparent;color:var(--amber);font-size:14px"><b>Live money movement is disabled.</b> No provider has approved production credentials. All figures below come from simulated exchanges.</div>
+   <div class="kpis">
+    <div class="card kpi"><span class="muted">Transactions</span><span class="v num">${s.all.length}</span><span class="muted num">${s.settled.length} completed · ${s.pending.length} pending · ${s.failed} failed</span></div>
+    <div class="card kpi"><span class="muted">Completed volume</span><span class="v num">${big(s.vol)}</span><span class="muted">Customer principal, not revenue</span></div>
+    <div class="card kpi dark"><span class="muted">Fee revenue · ${state.fee/100}%</span><span class="v num">${big(s.fee)}</span><span class="muted">Completed exchanges only</span></div>
+    <div class="card kpi"><span class="muted">FX spread income</span><span class="v num">${big(s.fx)}</span><span class="muted">Shown to customers separately</span></div>
+    <div class="card kpi"><span class="muted">Net after expenses</span><span class="v num">${big(s.fee+s.fx-exp)}</span><span class="muted num">Expenses ${money(exp,'USD')}</span></div>
+    <div class="card kpi"><span class="muted">Active customers</span><span class="v num">${s.customers}</span><span class="muted">Test accounts</span></div>
+   </div>
+   <div class="row" style="align-items:stretch;gap:16px">
+    <div class="card pad" style="flex:2 1 420px;min-width:0;display:flex;flex-direction:column;gap:10px"><div class="row"><b class="grow">Completed volume · last 30 days</b><span class="muted num">peak ${money(max,'USD')}</span></div>
+     <div class="bars" role="img" aria-label="Daily completed volume for the last 30 days">${per.map((v,i)=>`<div class="${i===29?'hi':''}" style="height:${Math.round(v/max*100)}%" title="${new Date(days[i]).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}: ${money(v,'USD')}"></div>`).join('')}</div>
+     <div class="row muted" style="justify-content:space-between;font-size:12px"><span>${new Date(days[0]).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</span><span>Today</span></div></div>
+    <div class="card pad" style="flex:1 1 280px;min-width:0"><b>Fee revenue by sending wallet</b>${byProv.length?byProv.map(x=>`<div class="kv"><span>${x.p.name} <small class="muted">· ${x.n}</small></span><span class="num">${money(x.v,'USD')}</span></div>`).join(''):'<p class="muted">No completed exchanges yet.</p>'}</div>
+   </div>
+   <div class="card tablebox"><div class="row pad" style="padding-bottom:8px"><b class="grow">Latest transactions</b><button class="btn ghost sm" data-tab="transactions">View all</button></div><table><thead><tr><th>Reference</th><th>Customer</th><th>Route</th><th style="text-align:right">Amount</th><th style="text-align:right">Fee</th><th>Status</th><th></th></tr></thead><tbody>${txRows(s.all.slice(0,6),true)}</tbody></table></div>`;
+}
+function tabTransactions(){
+  const all=state.tx.map(live); const f=state.txFilter;
+  const list=all.filter(t=>f==='all'||(f==='done'?t.status==='settled':f==='review'?t.status==='manual_review':f==='issues'?['failed','refunded'].includes(t.status):!['settled','failed','refunded','manual_review'].includes(t.status)));
+  const chip=(k,l)=>`<button class="btn sm ${f===k?'':'ghost'}" data-filter="${k}">${l}</button>`;
+  return `<h1 style="font-size:26px">Transactions</h1><div class="row">${chip('all','All')}${chip('progress','In progress')}${chip('review','Manual review')}${chip('done','Completed')}${chip('issues','Failed / refunded')}</div>
+   <div class="card tablebox"><table><thead><tr><th>Reference</th><th>Customer</th><th>Route</th><th style="text-align:right">Amount</th><th style="text-align:right">Fee</th><th>Status</th><th></th></tr></thead><tbody>${txRows(list,true)}</tbody></table></div>`;
+}
+function tabIntegrations(){
+  return `<div><h1 style="font-size:26px">API Integration Manager</h1><p class="muted" style="margin:4px 0 0">Enter official credentials when each provider grants access. In the real dashboard they are encrypted on the server and never returned to any app or browser; this test page only records which fields were filled.</p></div>
+   <div class="row" style="font-size:12px;gap:6px">${Object.entries(PSTATUS).map(([k,l])=>`<span class="pill ${k==='live'?'p-ok':k==='error'?'p-bad':k==='sandbox'?'p-blue':k==='awaiting_approval'?'p-warn':'p-mute'}">${l}</span>`).join('')}</div>
+   <div class="provgrid">${PROVIDERS.map(p=>{const s=state.providers[p.code];const blockers=goLiveBlockers(p.code);return `<div class="card pad" style="display:flex;flex-direction:column;gap:10px">
+    <div class="row"><div class="grow"><h3 style="font-size:18px">${p.name}</h3><div class="muted" style="font-size:12.5px">${p.group?esc(p.group)+' · ':''}${p.country} · ${p.cur} · ${[p.collect&&'collect',p.payout&&'payout'].filter(Boolean).join(' + ')||'n/a'}</div></div>
+     <button class="switch" role="switch" aria-checked="${s.enabled}" aria-label="Enable ${p.name}" data-act="toggle-prov" data-code="${p.code}"></button></div>
+    <span class="pill ${s.status==='sandbox'?'p-blue':s.status==='error'?'p-bad':s.status==='awaiting_approval'?'p-warn':'p-mute'}" style="align-self:flex-start">${s.enabled?PSTATUS[s.status]:'Disabled'}</span>
+    <div class="kv"><span>Sandbox credentials</span><span>${s.creds.sandbox.length?s.creds.sandbox.length+' fields set':'Not set'}</span></div>
+    <div class="kv"><span>Production credentials</span><span>${s.creds.production.length?s.creds.production.length+' fields set':'Not set'}</span></div>
+    <div class="kv"><span>Last test</span><span>${s.lastTest?(s.lastTest.ok?'✓ ':'✗ ')+fmtDate(s.lastTest.at):'Never'}</span></div>
+    <div class="row"><button class="btn sm" data-act="configure" data-code="${p.code}">Configure</button><button class="btn sm ghost" data-act="test" data-code="${p.code}">Test connection</button><button class="btn sm ghost" data-act="approvals" data-code="${p.code}">Approvals</button></div>
+    <details><summary class="muted" style="cursor:pointer;font-size:13px">Go-live checklist (${blockers.length} open)</summary><ul style="margin:8px 0 0;padding-left:18px;font-size:13px" class="muted">${blockers.map(b=>`<li>${b}</li>`).join('')}</ul></details>
+    ${s.logs.length?`<details><summary class="muted" style="cursor:pointer;font-size:13px">Integration log</summary><div style="font-size:12.5px;margin-top:6px" class="muted">${s.logs.slice(0,5).map(l=>`<div>${fmtDate(l.at)} · ${esc(l.msg)}</div>`).join('')}</div></details>`:''}
+   </div>`}).join('')}</div>`;
+}
+function goLiveBlockers(code){ const s=state.providers[code],a=s.approvals,b=['The platform is in test mode (production activation is separate).'];
+  if(!a.api)b.push('Official API access not recorded.'); if(!a.agreement)b.push('Provider agreement not recorded.'); if(!a.regulatory)b.push('Regulatory approval not recorded.');
+  if(!s.creds.production.length)b.push('Production credentials not configured.'); b.push('Money-moving calls must be built against the official specification.'); return b; }
+function tabExchange(){
+  const pairs=Object.keys(DEFAULT_RATES);
+  return `<h1 style="font-size:26px">Exchange management</h1>
+   <div class="row" style="align-items:flex-start;gap:16px">
+    <form class="card pad" data-form="fee" style="flex:1 1 300px;min-width:0;display:flex;flex-direction:column;gap:10px"><b>Service fee</b>
+     <div style="font-family:var(--f-display);font-size:36px" class="num">${(state.fee/100).toFixed(2)}%</div>
+     <div class="row" style="align-items:flex-end"><label class="f grow">New fee (%)<input class="in num" id="fee-new" inputmode="decimal" value="${(state.fee/100).toFixed(2)}"></label></div>
+     <label class="f">Reason for change (audited)<input class="in" id="fee-why" required minlength="5" placeholder="e.g. Promotion approved by finance"></label>
+     <button class="btn sm">Save fee</button>
+     ${state.feeHistory.length?`<div style="font-size:12.5px" class="muted">${state.feeHistory.slice(0,4).map(h=>`<div>${fmtDate(h.at)} · ${(h.from/100).toFixed(2)}% → ${(h.to/100).toFixed(2)}% · ${esc(h.why)}</div>`).join('')}</div>`:'<small class="muted">Default 1%. Applies to new quotes only.</small>'}</form>
+    <div class="card tablebox" style="flex:2 1 420px;min-width:0"><div class="pad" style="padding-bottom:4px"><b>Currency rates</b> <span class="muted" style="font-size:13px">· test rates, edit to see quotes change everywhere</span></div>
+     <table><thead><tr><th>Pair</th><th>Mid rate</th><th>Spread (bps)</th><th></th></tr></thead><tbody>${pairs.map(k=>{const [a,b]=k.split('>');const r=state.rates[k];return `<tr><td><b>${a} → ${b}</b></td><td><input class="in num" style="width:130px;height:38px" id="r-${a}${b}" value="${(r[0]/1e6).toFixed(6).replace(/0+$/,'').replace(/\.$/,'')}"></td><td><input class="in num" style="width:90px;height:38px" id="s-${a}${b}" value="${r[1]}"></td><td><button class="btn sm ghost" data-act="save-rate" data-pair="${k}">Save</button></td></tr>`}).join('')}</tbody></table></div>
+   </div>
+   <div class="card tablebox"><div class="pad" style="padding-bottom:4px"><b>Exchange routes</b> <span class="muted" style="font-size:13px">· a route is offered only when both wallets are enabled and a rate exists</span></div>
+    <table><thead><tr><th>Route</th><th>Currencies</th><th>Provider charge (bps)</th><th>Available</th><th>Enabled</th></tr></thead><tbody>${ROUTES.map(([a,b])=>{const k=a+'>'+b,r=state.routes[k];return `<tr><td><b>${P[a].name} → ${P[b].name}</b></td><td class="muted">${P[a].cur} → ${P[b].cur}</td><td><input class="in num" style="width:80px;height:36px" id="pf-${a}-${b}" value="${r.pfee}" data-act-change="pfee" data-route="${k}"></td><td>${routeOk(a,b)?'<span class="pill p-ok">Yes</span>':'<span class="pill p-mute">No</span>'}</td><td><button class="switch" role="switch" aria-checked="${r.enabled}" aria-label="Enable ${P[a].name} to ${P[b].name}" data-act="toggle-route" data-route="${k}"></button></td></tr>`}).join('')}</tbody></table></div>`;
+}
+function tabFinance(){
+  const s=stats(); const curs=['USD','ETB','KES'];
+  const rev=curs.map(c=>({c,fee:s.settled.filter(t=>t.cur===c).reduce((a,t)=>a+t.fee,0),pfee:s.settled.filter(t=>t.cur===c).reduce((a,t)=>a+t.pfee,0),fx:s.settled.filter(t=>t.rcur===c&&t.cur!==t.rcur).reduce((a,t)=>a+t.diff,0),vol:s.settled.filter(t=>t.cur===c).reduce((a,t)=>a+t.amount,0)}));
+  const st=(x)=>({draft:'p-mute',submitted:'p-warn',approved:'p-blue',rejected:'p-bad',paid:'p-ok'}[x]);
+  const next={draft:'submitted',submitted:'approved',approved:'paid'};
+  return `<h1 style="font-size:26px">Finance & revenue</h1>
+   <div class="card tablebox"><div class="pad" style="padding-bottom:4px"><b>Revenue by currency</b> <span class="muted" style="font-size:13px">· completed exchanges only; customer principal is a liability, not revenue</span></div>
+    <table><thead><tr><th>Currency</th><th style="text-align:right">Completed volume</th><th style="text-align:right">1% fee revenue</th><th style="text-align:right">Provider charges (pass-through)</th><th style="text-align:right">FX spread income</th></tr></thead><tbody>${rev.map(r=>`<tr><td><b>${r.c}</b></td><td class="num" style="text-align:right">${money(r.vol,r.c)}</td><td class="num" style="text-align:right"><b>${money(r.fee,r.c)}</b></td><td class="num" style="text-align:right">${money(r.pfee,r.c)}</td><td class="num" style="text-align:right">${money(r.fx,r.c)}</td></tr>`).join('')}</tbody></table></div>
+   <div class="row" style="align-items:flex-start;gap:16px">
+    <form class="card pad" data-form="expense" style="flex:1 1 300px;min-width:0;display:flex;flex-direction:column;gap:10px"><b>Record an expense</b>
+     <label class="f">Title<input class="in" id="x-title" required minlength="3" placeholder="Hosting — staging server"></label>
+     <label class="f">Category<select class="in" id="x-cat">${['Hosting and servers','SMS and OTP costs','WhatsApp messaging costs','API provider charges','Employee salaries','Office rent','Internet','Marketing and advertising','Software subscriptions','Transport','Utilities','Equipment','Maintenance','Professional services','Miscellaneous'].map(c=>`<option>${c}</option>`).join('')}</select></label>
+     <div class="row" style="align-items:flex-end"><label class="f grow">Amount<input class="in num" id="x-amt" inputmode="decimal" required></label><label class="f"><span>Currency</span><select class="in" id="x-cur"><option>USD</option><option>ETB</option><option>KES</option></select></label></div>
+     <label class="f">Supplier<input class="in" id="x-sup" placeholder="Vendor name"></label>
+     <button class="btn sm">Save as draft</button><small class="muted">Draft → Submitted → Approved → Paid</small></form>
+    <div class="card tablebox" style="flex:2 1 420px;min-width:0"><div class="pad" style="padding-bottom:4px"><b>Expenses</b></div><table><thead><tr><th>Date</th><th>Expense</th><th style="text-align:right">Amount</th><th>Status</th><th></th></tr></thead><tbody>
+     ${state.expenses.length?state.expenses.map(e=>`<tr><td class="num">${esc(e.date)}</td><td><b>${esc(e.title)}</b><div class="muted" style="font-size:12.5px">${esc(e.category)}${e.supplier?' · '+esc(e.supplier):''}</div></td><td class="num" style="text-align:right">${money(e.amount,e.cur)}</td><td><span class="pill ${st(e.status)}">${e.status[0].toUpperCase()+e.status.slice(1)}</span></td><td style="text-align:right;white-space:nowrap">${next[e.status]?`<button class="btn sm ghost" data-act="exp-next" data-id="${e.id}">${{submitted:'Submit',approved:'Approve',paid:'Mark paid'}[next[e.status]]}</button>`:''}${e.status==='submitted'?` <button class="btn sm ghost" data-act="exp-reject" data-id="${e.id}">Reject</button>`:''}</td></tr>`).join(''):'<tr><td colspan="5" class="muted" style="text-align:center;padding:24px">No expenses recorded.</td></tr>'}
+    </tbody></table></div></div>`;
+}
+function tabLiquidity(){
+  const day=new Date(); day.setHours(0,0,0,0); const since=day.getTime(), week=since-6*864e5;
+  const all=state.tx.map(live).filter(t=>t.status==='settled');
+  const rows=PROVIDERS.filter(p=>p.code in state.float).map(p=>{
+    const open=state.float[p.code], cur=p.cur;
+    const tIn=all.filter(t=>t.from===p.code&&t.createdAt>=since).reduce((a,t)=>a+t.amount,0);
+    const tOut=all.filter(t=>t.to===p.code&&t.createdAt>=since).reduce((a,t)=>a+t.receive,0);
+    const wIn=all.filter(t=>t.from===p.code&&t.createdAt>=week).reduce((a,t)=>a+t.amount,0);
+    const wOut=all.filter(t=>t.to===p.code&&t.createdAt>=week).reduce((a,t)=>a+t.receive,0);
+    const bal=open+tIn-tOut, pct=Math.max(0,Math.round(bal/open*100)), turns=(wOut/open/7);
+    const st=pct<35?['Needs top-up','p-bad']:pct>165?['Surplus — rebalance','p-warn']:['Healthy','p-ok'];
+    return {p,cur,open,tIn,tOut,bal,pct,turns,st};
+  });
+  const usdT=(f)=>rows.reduce((a,r)=>a+usd(f(r),r.cur),0);
+  const openU=usdT(r=>r.open), balU=usdT(r=>r.bal), inU=usdT(r=>r.tIn), outU=usdT(r=>r.tOut);
+  const need=rows.filter(r=>r.st[0]!=='Healthy');
+  return `<div><h1 style="font-size:26px">Liquidity & float</h1><p class="muted" style="margin:4px 0 0">Balances in SARIFIO's own wallet accounts that pay out exchanges. Test float values — not real balances.</p></div>
+   <div class="kpis">
+    <div class="card kpi dark"><span class="muted">Total float (USD equiv.)</span><span class="v num">${money(balU,'USD')}</span><span class="muted">Opening ${money(openU,'USD')}</span></div>
+    <div class="card kpi"><span class="muted">Collected today</span><span class="v num">${money(inU,'USD')}</span><span class="muted">Customer payments in</span></div>
+    <div class="card kpi"><span class="muted">Paid out today</span><span class="v num">${money(outU,'USD')}</span><span class="muted">Sent to receivers</span></div>
+    <div class="card kpi"><span class="muted">Accounts needing action</span><span class="v num">${need.length}</span><span class="muted">${need.length?need.map(r=>r.p.name).join(', '):'All accounts healthy'}</span></div>
+   </div>
+   <div class="card tablebox"><table><thead><tr><th>Wallet account</th><th style="text-align:right">Opening float</th><th style="text-align:right">In today</th><th style="text-align:right">Out today</th><th style="text-align:right">Balance now</th><th style="width:22%">Level</th><th style="text-align:right">Turns / day (7d)</th><th>Status</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td><b>${r.p.name}</b><div class="muted" style="font-size:12.5px">${r.cur}</div></td><td class="num" style="text-align:right">${money(r.open,r.cur)}</td><td class="num" style="text-align:right">${money(r.tIn,r.cur)}</td><td class="num" style="text-align:right">${money(r.tOut,r.cur)}</td><td class="num" style="text-align:right"><b>${money(r.bal,r.cur)}</b></td>
+     <td><div style="height:8px;border-radius:99px;background:var(--chip);overflow:hidden"><div style="height:100%;width:${Math.min(100,r.pct/2)}%;background:${r.st[1]==='p-bad'?'var(--bad)':r.st[1]==='p-warn'?'var(--amber)':'var(--teal)'}"></div></div><div class="muted num" style="font-size:12px;margin-top:3px">${r.pct}% of opening</div></td>
+     <td class="num" style="text-align:right">${r.turns.toFixed(1)}×</td><td><span class="pill ${r.st[1]}">${r.st[0]}</span></td></tr>`).join('')}
+   </tbody></table></div>
+   <div class="card pad" style="font-size:14px"><b>Rebalancing rule.</b> When an account falls below 35% of its opening float, the route paying out of it is paused automatically and the team moves funds from accounts in surplus. Customers see "temporarily unavailable" rather than a failed exchange.</div>`;
+}
+function tabCustomers(){
+  const all=state.tx.map(live); const by={};
+  for(const t of all){ const c=by[t.phone]||(by[t.phone]={name:t.customer,phone:t.phone,n:0,done:0,vol:0,fee:0,last:0,wallets:{}}); c.n++; if(t.status==='settled'){c.done++;c.vol+=usd(t.amount,t.cur);c.fee+=usd(t.fee,t.cur);} c.last=Math.max(c.last,t.createdAt); c.wallets[t.from]=(c.wallets[t.from]||0)+1; }
+  const q=state.custQ.toLowerCase(); const list=Object.values(by).filter(c=>!q||c.name.toLowerCase().includes(q)||c.phone.includes(q)).sort((a,b)=>b.vol-a.vol);
+  const mask=(p)=>p.slice(0,7)+' ••• '+p.slice(-3);
+  return `<div class="row"><div class="grow"><h1 style="font-size:26px">Customers</h1><p class="muted" style="margin:4px 0 0">${Object.keys(by).length} test customers · ranked by completed volume</p></div><input class="in" id="cust-q" data-cust="q" placeholder="Search name or phone" value="${esc(state.custQ)}" style="width:260px;max-width:100%"></div>
+   <div class="card tablebox"><table><thead><tr><th>Customer</th><th>Phone</th><th>Main wallet</th><th style="text-align:right">Exchanges</th><th style="text-align:right">Completed volume</th><th style="text-align:right">Fees paid</th><th>Last exchange</th><th>KYC</th></tr></thead><tbody>
+    ${list.length?list.map(c=>{const w=Object.entries(c.wallets).sort((a,b)=>b[1]-a[1])[0][0];return `<tr><td><b>${esc(c.name)}</b></td><td class="mono">${esc(mask(c.phone))}</td><td>${P[w].name}</td><td class="num" style="text-align:right">${c.done}/${c.n}</td><td class="num" style="text-align:right"><b>${money(c.vol,'USD')}</b></td><td class="num" style="text-align:right">${money(c.fee,'USD')}</td><td class="num">${fmtDate(c.last)}</td><td><span class="pill p-ok">Phone verified</span></td></tr>`}).join(''):'<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">No customers yet.</td></tr>'}
+   </tbody></table></div>`;
+}
+function tabAudit(){
+  const ev=[];
+  for(const h of state.feeHistory) ev.push({at:h.at,area:'Fees',what:`Service fee changed ${(h.from/100).toFixed(2)}% → ${(h.to/100).toFixed(2)}%`,why:h.why});
+  for(const p of PROVIDERS) for(const l of state.providers[p.code].logs) ev.push({at:l.at,area:'Integrations',what:`${p.name}: ${l.msg}`,why:''});
+  for(const t of state.tx) if(t.resolution) ev.push({at:t.resolution.at,area:'Transactions',what:`${t.ref} ${t.resolution.status==='settled'?'payout approved after review':'refunded after review'}`,why:t.resolution.note||''});
+  ev.sort((a,b)=>b.at-a.at);
+  return `<div><h1 style="font-size:26px">Audit log</h1><p class="muted" style="margin:4px 0 0">Every sensitive change made in this dashboard, newest first. Entries cannot be edited.</p></div>
+   <div class="card tablebox"><table><thead><tr><th>Time</th><th>Area</th><th>Action</th><th>Reason / note</th><th>By</th></tr></thead><tbody>
+    ${ev.length?ev.slice(0,60).map(e=>`<tr><td class="num" style="white-space:nowrap">${fmtDate(e.at)}</td><td><span class="pill p-blue">${e.area}</span></td><td><b>${esc(e.what)}</b></td><td class="muted">${esc(e.why)||'—'}</td><td>Test administrator</td></tr>`).join(''):'<tr><td colspan="5" class="muted" style="text-align:center;padding:24px">No changes recorded yet. Changing a fee, testing a provider or resolving a review adds an entry.</td></tr>'}
+   </tbody></table></div>`;
+}
+function tabSupport(){
+  return `<h1 style="font-size:26px">Customer support</h1><div class="card tablebox"><table><thead><tr><th>Ticket</th><th>From</th><th>Subject</th><th>Received</th><th>Status</th><th></th></tr></thead><tbody>
+   ${state.tickets.length?state.tickets.map(t=>`<tr><td class="mono">${esc(t.number)}</td><td>${esc(t.name)}<div class="muted" style="font-size:12.5px">${esc(t.contact)}</div></td><td><b>${esc(t.subject)}</b><div class="muted" style="font-size:12.5px;max-width:420px">${esc(t.message)}</div></td><td class="num">${fmtDate(t.createdAt)}</td><td><span class="pill ${t.status==='resolved'?'p-ok':t.status==='pending'?'p-blue':'p-warn'}">${t.status[0].toUpperCase()+t.status.slice(1)}</span></td><td style="text-align:right;white-space:nowrap">${t.status!=='resolved'?`<button class="btn sm ghost" data-act="tkt" data-id="${t.id}" data-to="${t.status==='open'?'pending':'resolved'}">${t.status==='open'?'Take':'Resolve'}</button>`:''}</td></tr>`).join(''):'<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">No tickets. Messages from the website Contact page arrive here.</td></tr>'}
+   </tbody></table></div><p class="muted" style="font-size:13px">WhatsApp chats are not synchronised into this inbox; that needs an authorised WhatsApp Business integration.</p>`;
+}
+function tabSettings(){ const c=state.company; const f=(id,l,v)=>`<label class="f">${l}<input class="in" id="${id}" value="${esc(v)}" required></label>`;
+  return `<h1 style="font-size:26px">Company settings</h1><form class="card pad" data-form="company" style="max-width:640px;display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">
+   ${f('co-name','Company name',c.name)}${f('co-tag','Tagline',c.tagline)}${f('co-web','Website',c.website)}${f('co-email','General email',c.email)}${f('co-sup','Support email',c.support)}${f('co-phone','Support phone',c.phone)}${f('co-wa','WhatsApp',c.whatsapp)}
+   <div style="grid-column:1/-1" class="row"><button class="btn sm">Publish changes</button><span class="muted" style="font-size:13px">Updates the website header, footer and contact page right away.</span></div></form>`; }
+
+// ================================================================= render
+function render(){
+  document.getElementById('m-web').setAttribute('aria-pressed',state.mode==='website');
+  document.getElementById('m-admin').setAttribute('aria-pressed',state.mode==='admin');
+  const banner=state.saved?'':`<div class="wrap" style="padding-block:8px"><div class="card pad" style="font-size:13.5px">This browser is blocking storage, so test changes last only until you close the page.</div></div>`;
+  let html;
+  if(state.mode==='website'){ html={home:pageHome,fees:pageFees,login:pageLogin,exchange:pageExchange,account:pageAccount,contact:pageContact}[state.page]?.()||pageHome(); }
+  else { html=adminShell({overview:tabOverview,transactions:tabTransactions,liquidity:tabLiquidity,customers:tabCustomers,audit:tabAudit,integrations:tabIntegrations,exchange:tabExchange,finance:tabFinance,support:tabSupport,settings:tabSettings}[state.tab]()); }
+  const app=document.getElementById('app');
+  const active=document.activeElement?.id; const pos=active&&document.activeElement.selectionStart;
+  app.innerHTML=banner+html;
+  if(active){ const el=document.getElementById(active); if(el){ el.focus(); try{ if(pos!=null) el.setSelectionRange(pos,pos);}catch(e){} } }
+}
+
+// ================================================================= actions
+let openReceipt=null;
+function receipt(id){ openReceipt=id; const t0=state.tx.find(x=>x.id===id); if(!t0) return; const t=live(t0);
+  modal(`<div class="row"><div class="grow"><div class="muted" style="font-size:13px">${t.status==='settled'?'Amount received':'Exchange amount'}</div><div style="font-family:var(--f-display);font-size:28px" class="num">${t.status==='settled'?money(t.receive,t.rcur):money(t.amount,t.cur)}</div></div><span class="pill ${pillFor(t.status)}">${STATUS[t.status]}</span></div><hr>
+   <div class="kv"><span>Reference</span><span class="mono">${esc(t.ref)}</span></div><div class="kv"><span>Customer</span><span>${esc(t.customer)}</span></div><div class="kv"><span>From</span><span>${P[t.from].name}${P[t.from].group?' ('+P[t.from].group+')':''}</span></div><div class="kv"><span>To</span><span>${P[t.to].name} · ${esc(t.account)}</span></div>${t.recipient?`<div class="kv"><span>Receiver</span><span>${esc(t.recipient)}</span></div>`:''}
+   <hr>${quoteBlock(t)}
+   ${t.reason?`<div class="card pad" style="background:var(--amber-bg);border-color:transparent;color:var(--amber);font-size:13.5px;margin-top:8px">${esc(t.reason)}</div>`:''}
+   <hr><b style="font-size:14px">Timeline</b>${t.events.map(e=>`<div class="kv"><span>${STATUS[e.s]}</span><span class="num">${new Date(e.at).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}</span></div>`).join('')}
+   ${state.mode==='admin'&&t.status==='manual_review'?`<div class="row" style="margin-top:10px"><button class="btn sm teal" data-act="resolve" data-id="${t.id}" data-to="settled">Approve payout</button><button class="btn sm ghost" data-act="resolve" data-id="${t.id}" data-to="refunded">Refund customer</button></div>`:''}
+   <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="btn sm" data-act="close">Close</button></div>`);
+}
+function makeTx(from,to,amount,outcome,customer,phone,account,recipient,createdAt){
+  const q=quote(from,to,amount); const id=rid('tx_');
+  return {id,data:{ref:'SRF-T'+id.slice(3,7)+'-'+id.slice(7,11),from,to,cur:q.cur,rcur:q.rcur,amount,feeBps:q.feeBps,fee:q.fee,pfee:q.pfee,mid:q.mid,rate:q.rate,diff:q.diff,receive:q.receive,outcome,customer,phone,account,recipient:recipient||null,createdAt,demo:!!createdAt&&createdAt<Date.now()-60000}};
+}
+// Demo data: ~60 days of history, completed volume scaled to just under USD 3M (test data only).
+function demoSet(now,opt={}){
+  const target=opt.target||2985000, days=opt.days||60, somaliOnly=!!opt.somaliOnly;
+  let seed=20261016; const rnd=()=>{seed=(seed*1103515245+12345)%2147483648;return seed/2147483648;};
+  const pick=a=>a[Math.floor(rnd()*a.length)];
+  const people=[['Amina Yusuf','+252615550101'],['Abdirahman Ali','+252907700212'],['Hodan Warsame','+252634410093'],['John Kamau','+254712345678'],['Abebe Tesfaye','+251911223344'],['Faadumo Nur','+252906600455'],['Ismail Farah','+252617788120'],['Sahra Jama','+252907123450'],['Mohamed Abdi','+252615009871'],['Ayaan Hassan','+252634001122'],['Grace Wanjiru','+254722110033'],['Peter Otieno','+254733556677'],['Meron Alemu','+251922334455'],['Dawit Bekele','+251933221100'],['Ahmed Said','+252906332211'],['Khadra Osman','+252617441199'],['Yusuf Mohamud','+252907885566'],['Nasra Ahmed','+252615227744'],['Omar Hirsi','+252634778899'],['Ifrah Ali','+252906118822'],['Bashir Warsame','+252907330077'],['Hamdi Yasin','+252615660033'],['Liban Abdullahi','+252634992211'],['Saida Musse','+252906554433'],['Kevin Mwangi','+254701998877']];
+  if(opt.customers){ const F=['Amina','Abdirahman','Hodan','Faadumo','Ismail','Sahra','Mohamed','Ayaan','Ahmed','Khadra','Yusuf','Nasra','Omar','Ifrah','Bashir','Hamdi','Liban','Saida','Abdi','Hawa','Mustafa','Deeqa','Ali','Ubah','Hassan','Najma','Abdullahi','Fadumo','Jama','Sagal'], L=['Yusuf','Ali','Warsame','Nur','Farah','Jama','Abdi','Hassan','Said','Osman','Mohamud','Ahmed','Hirsi','Abdullahi','Musse','Isse','Guled','Aden','Elmi','Dahir'];
+    people.length=0; for(let i=0;i<opt.customers;i++) people.push([F[i%F.length]+' '+L[Math.floor(i/F.length)%L.length], '+25290'+String(6000000+i*7919%3999999).padStart(7,'0')]); }
+  const routes=ROUTES.filter(([a,b])=>routeOk(a,b)&&(!somaliOnly||(SOMALI.includes(a)&&SOMALI.includes(b))));
+  const raw=[];
+  for(let d=0; d<days; d++){
+    const n=(opt.perDay||0)+3+Math.floor(rnd()*4)+(d<21?2:0);
+    for(let k=0;k<n;k++){
+      const r=rnd();
+      const v= opt.small? 10+Math.pow(r,2.2)*490 : r<.45? 30+rnd()*970 : r<.80? 1000+rnd()*9000 : r<.96? 10000+rnd()*30000 : 40000+rnd()*60000;
+      const o=rnd();
+      raw.push({route:pick(routes),v,outcome:o<.90?'success':o<.95?'fail_payout':'fail_payment',at:now-d*864e5-Math.floor(rnd()*80e6)-6e5,per:pick(people),acc:1000+Math.floor(rnd()*9000)});
+    }
+  }
+  raw.sort((a,b)=>b.at-a.at); raw[1].outcome='manual_review'; raw[4].outcome='manual_review'; raw[9].outcome='manual_review';
+  const okSum=raw.filter(x=>x.outcome==='success').reduce((a,x)=>a+x.v,0), k=target/okSum;
+  if(opt.float){ const day=new Date(now); day.setHours(0,0,0,0); const bal={...opt.float};
+    const asc=raw.map((x,i)=>i).filter(i=>raw[i].at>=day.getTime()).sort((a,b)=>raw[a].at-raw[b].at);
+    for(const i of asc){ const x=raw[i]; if(x.outcome!=='success') continue; const v=Math.round(x.v*k)*100;
+      if((bal[x.route[1]]??0)<v){ const alt=Object.keys(bal).filter(w=>w!==x.route[0]&&SOMALI.includes(w)).sort((a,b)=>bal[b]-bal[a])[0];
+        if(alt&&bal[alt]>=v) x.route=[x.route[0],alt]; else { x.outcome='manual_review'; continue; } }
+      bal[x.route[1]]-=v; bal[x.route[0]]=(bal[x.route[0]]||0)+v; } }
+  const tx=raw.map((x,i)=>{
+    const [a,b]=x.route, cur=P[a].cur, usdMinor=Math.round(x.v*k)*100;
+    const amount= cur==='USD'? usdMinor : Math.round(conv(usdMinor,rateFor('USD',cur)[0])/100)*100;
+    const q=quote(a,b,amount), id='tx_demo'+String(i).padStart(4,'0');
+    return {id,data:{ref:'SRF-D'+String(240000+i*37).slice(-6),from:a,to:b,cur:q.cur,rcur:q.rcur,amount,feeBps:q.feeBps,fee:q.fee,pfee:q.pfee,mid:q.mid,rate:q.rate,diff:q.diff,receive:q.receive,outcome:x.outcome,customer:x.per[0],phone:x.per[1],account:'•••• '+x.acc,recipient:i%4?null:pick(people)[0],createdAt:x.at,demo:true}};
+  });
+  const tickets=[['Amina Yusuf','+252615550101','Where is my exchange?','I sent $100 from Sahal to eDahab, how long does it take?','resolved'],['John Kamau','+254712345678','M-Pesa limit','Can I send more than KSh 50,000 in one exchange?','open'],['Hodan Warsame','hodan@example.com','Refund question','My payout failed. When will the money return to my wallet?','pending'],['Meron Alemu','+251922334455','eBirr receipt','I need a receipt for my company accounts.','resolved'],['Omar Hirsi','+252634778899','Large exchange','I want to exchange $40,000. Is there a daily limit?','open'],['Grace Wanjiru','+254722110033','Wrong number','I entered the wrong M-Pesa number. Can you stop it?','pending']]
+    .map((x,i)=>({id:'tkt_demo'+i,data:{number:'T-'+(10021+i),name:x[0],contact:x[1],subject:x[2],message:x[3],status:x[4],createdAt:now-(i+1)*9e6}}));
+  const expenses=[['Staff salaries — September','Employee salaries',850000,'paid','Payroll'],['Office rent — October','Office rent',180000,'paid','[LANDLORD]'],['Staging + production servers','Hosting and servers',42000,'paid','[HOSTING PROVIDER]'],['SMS OTP bundle — 50,000 messages','SMS and OTP costs',95000,'paid','[SMS GATEWAY]'],['WhatsApp Business messaging','WhatsApp messaging costs',38000,'approved','[WHATSAPP BSP]'],['Launch campaign — social ads','Marketing and advertising',250000,'approved','Meta'],['Legal review of terms and policies','Professional services',300000,'submitted','[LAW FIRM]'],['Office internet — October','Internet',12000,'paid','[ISP]'],['Laptops for support team','Equipment',360000,'submitted','[SUPPLIER]'],['Design and dev tools','Software subscriptions',24000,'draft','Various']]
+    .map((x,i)=>({id:'exp_demo'+i,data:{title:x[0],category:x[1],amount:x[2],cur:'USD',status:x[3],supplier:x[4],date:new Date(now-i*864e5*4).toISOString().slice(0,10)}}));
+  return {tx,tickets,expenses};
+}
+async function addDemo(){
+  const d=demoSet(Date.now()); toast('Adding demo data…');
+  const all=[...d.tx.map(x=>['tx',x]),...d.tickets.map(x=>['tickets',x]),...d.expenses.map(x=>['expenses',x])];
+  for(let i=0;i<all.length;i+=25) await Promise.all(all.slice(i,i+25).map(([c,x])=>put(c,x.id,x.data)));
+  toast(`${d.tx.length} demo exchanges, ${d.tickets.length} tickets and ${d.expenses.length} expenses added.`);
+}
+async function clearAll(){
+  const all=[...state.tx.map(x=>['tx',x.id]),...state.tickets.map(x=>['tickets',x.id]),...state.expenses.map(x=>['expenses',x.id])];
+  for(let i=0;i<all.length;i+=25) await Promise.all(all.slice(i,i+25).map(([c,id])=>del(c,id)));
+  toast('Test data cleared.');
+}
+
+document.addEventListener('click',async(ev)=>{
+  const el=ev.target.closest('[data-mode],[data-page],[data-tab],[data-act],[data-filter]'); if(!el) return;
+  if(el.dataset.act==='close-bg'&&ev.target!==el) return;
+  if(el.dataset.mode){ state.mode=el.dataset.mode; try{location.hash=state.mode==='admin'?'admin':'home';}catch(e){} render(); window.scrollTo(0,0); return; }
+  if(el.dataset.page){ ev.preventDefault(); state.page=el.dataset.page; render(); window.scrollTo(0,0); return; }
+  if(el.dataset.tab){ state.tab=el.dataset.tab; render(); window.scrollTo(0,0); return; }
+  if(el.dataset.filter){ state.txFilter=el.dataset.filter; render(); return; }
+  const a=el.dataset.act, code=el.dataset.code;
+  if(a==='close'||a==='close-bg') return closeModal();
+  if(a==='receipt') return receipt(el.dataset.id);
+  if(a==='logout'){ state.session=null; try{localStorage.removeItem('sarifio_test_session')}catch(e){} state.page='home'; render(); return; }
+  if(a==='otp-back'){ state.otp=null; render(); return; }
+  if(a==='demo') return addDemo();
+  if(a==='clear'){ modal(`<h3 style="font-size:19px">Clear all test data?</h3><p class="muted">Removes every test exchange, ticket and expense for everyone using this test environment.</p><div class="row" style="justify-content:flex-end"><button class="btn sm ghost" data-act="close">Cancel</button><button class="btn sm" data-act="clear-yes">Clear test data</button></div>`); return; }
+  if(a==='clear-yes'){ closeModal(); return clearAll(); }
+  if(a==='resolve'){ const t=state.tx.find(x=>x.id===el.dataset.id); const to=el.dataset.to; await put('tx',t.id,{...strip(t),resolution:{status:to,at:Date.now(),note:to==='refunded'?'Refunded by operations after review. No fee charged.':null}}); closeModal(); toast(to==='settled'?'Payout approved.':'Customer refunded.'); return; }
+  if(a==='toggle-prov'){ const s=state.providers[code]; s.enabled=!s.enabled; s.logs.unshift({at:Date.now(),msg:s.enabled?'Enabled':'Disabled'}); await saveProviders(); render(); return; }
+  if(a==='toggle-route'){ const r=state.routes[el.dataset.route]; r.enabled=!r.enabled; await putConfig('routes',{routes:state.routes}); render(); return; }
+  if(a==='save-rate'){ const k=el.dataset.pair, ab=k.replace('>',''); const v=parseFloat(document.getElementById('r-'+ab).value), s=parseInt(document.getElementById('s-'+ab).value,10);
+    if(!(v>0)||!(s>=0&&s<=2000)) return toast('Enter a positive rate and a spread between 0 and 2000 bps.');
+    state.rates[k]=[Math.round(v*1e6),s]; await putConfig('rates',{pairs:state.rates}); toast(`${k.replace('>',' → ')} saved.`); render(); return; }
+  if(a==='configure'){ const p=P[code],s=state.providers[code];
+    modal(`<h3 style="font-size:19px">${p.name} credentials</h3><p class="muted" style="font-size:13.5px">Paste values from ${p.name}'s official developer portal. Leave a field empty to keep its current value.</p>
+     <form data-form="creds" data-code="${code}" style="display:flex;flex-direction:column;gap:10px"><label class="f">Environment<select class="in" id="cr-env"><option value="sandbox">Sandbox</option><option value="production">Production</option></select></label>
+     ${p.fields.map((f,i)=>`<label class="f">${f}<input class="in" id="cr-${i}" ${/key|secret|passkey/i.test(f)?'type="password" autocomplete="off"':''}></label>`).join('')}
+     <label class="f">Webhook signing secret<input class="in" id="cr-wh" type="password" autocomplete="off"></label>
+     <div class="row" style="justify-content:flex-end"><button class="btn sm ghost" type="button" data-act="close">Cancel</button><button class="btn sm">Save credentials</button></div></form>`); return; }
+  if(a==='approvals'){ const s=state.providers[code];
+    modal(`<h3 style="font-size:19px">${P[code].name} approvals</h3><form data-form="approvals" data-code="${code}" style="display:flex;flex-direction:column;gap:10px">
+     ${[['api','Official API access granted'],['agreement','Provider agreement signed'],['regulatory','Regulatory approval obtained']].map(([k,l])=>`<label class="row" style="font-weight:600"><input type="checkbox" id="ap-${k}" ${s.approvals[k]?'checked':''}> ${l}</label>`).join('')}
+     <small class="muted">A second administrator must switch a provider live, and only in production mode.</small>
+     <div class="row" style="justify-content:flex-end"><button class="btn sm ghost" type="button" data-act="close">Cancel</button><button class="btn sm">Save</button></div></form>`); return; }
+  if(a==='test'){ const s=state.providers[code]; const ok=s.creds.sandbox.length>0||s.status==='sandbox';
+    s.lastTest={ok,at:Date.now()}; s.logs.unshift({at:Date.now(),msg:ok?'Sandbox simulator reachable':'Missing sandbox credentials'}); await saveProviders(); toast(ok?`${P[code].name}: sandbox simulator OK.`:`${P[code].name}: add sandbox credentials first.`); render(); return; }
+  if(a==='exp-next'||a==='exp-reject'){ const e=state.expenses.find(x=>x.id===el.dataset.id); const next={draft:'submitted',submitted:'approved',approved:'paid'}; await put('expenses',e.id,{...strip(e),status:a==='exp-reject'?'rejected':next[e.status]}); return; }
+  if(a==='tkt'){ const t=state.tickets.find(x=>x.id===el.dataset.id); await put('tickets',t.id,{...strip(t),status:el.dataset.to}); return; }
+});
+const strip=(o)=>{const {id,...rest}=o;return rest;};
+
+document.addEventListener('input',(ev)=>{
+  const t=ev.target;
+  if(t.dataset.calc){ state.calc[t.dataset.calc]=t.value; render(); }
+  if(t.dataset.cust){ state.custQ=t.value; render(); }
+  if(t.dataset.ex){ state.ex[t.dataset.ex]=t.value; if(['from','to','amount','outcome'].includes(t.dataset.ex)) render(); }
+});
+document.addEventListener('change',async(ev)=>{
+  const t=ev.target;
+  if(t.dataset.actChange==='pfee'){ const v=parseInt(t.value,10); if(v>=0&&v<=1000){ state.routes[t.dataset.route].pfee=v; await putConfig('routes',{routes:state.routes}); toast('Provider charge saved.'); } else toast('Use 0–1000 basis points.'); }
+});
+document.addEventListener('submit',async(ev)=>{
+  ev.preventDefault(); const f=ev.target, k=f.dataset.form, v=(id)=>document.getElementById(id)?.value?.trim();
+  if(k==='otp-req'){ const phone=v('l-cc')+' '+v('l-phone').replace(/\D/g,''); if(v('l-phone').replace(/\D/g,'').length<7) return toast('Enter a valid phone number.');
+    state.otp={name:v('l-name'),phone,code:String(100000+Math.floor(Math.random()*900000))}; render(); return; }
+  if(k==='otp-verify'){ if(v('l-code')!==state.otp.code) return toast('That code is not correct.');
+    state.session={name:state.otp.name,phone:state.otp.phone}; state.otp=null; try{localStorage.setItem('sarifio_test_session',JSON.stringify(state.session))}catch(e){} state.page='exchange'; render(); toast('Signed in to your test account.'); return; }
+  if(k==='exchange'){ const e=state.ex, amt=parseAmt(e.amount); if(!amt||amt<100) return toast('Enter an amount of at least 1.00.');
+    if(String(e.account).replace(/\D/g,'').length<7) return toast("Enter the receiver's account number.");
+    const d=String(e.account).replace(/\D/g,''); const t=makeTx(e.from,e.to,amt,e.outcome,state.session.name,state.session.phone,'•••• '+d.slice(-4),e.name,Date.now());
+    await put('tx',t.id,t.data); state.ex.account='';state.ex.name=''; state.page='account'; render(); setTimeout(()=>receipt(t.id),50); toast('Exchange created. Watch it progress.'); return; }
+  if(k==='contact'){ await put('tickets',rid('tkt_'),{number:'T-'+(10021+state.tickets.length+Math.floor(Math.random()*90)),name:v('ct-name'),contact:v('ct-contact'),subject:v('ct-subj'),message:v('ct-msg'),status:'open',createdAt:Date.now()}); f.reset(); toast('Message sent to SARIFIO support.'); return; }
+  if(k==='fee'){ const pct=parseFloat(v('fee-new')); if(!(pct>=0&&pct<=10)) return toast('Use a fee between 0% and 10%.'); const bps=Math.round(pct*100);
+    state.feeHistory.unshift({at:Date.now(),from:state.fee,to:bps,why:v('fee-why')}); state.fee=bps; await putConfig('fee',{bps,history:state.feeHistory.slice(0,20)}); toast(`Fee set to ${pct.toFixed(2)}%. Applies to new quotes.`); render(); return; }
+  if(k==='creds'){ const code=f.dataset.code, env=v('cr-env'), s=state.providers[code]; const filled=P[code].fields.filter((_,i)=>v('cr-'+i)); if(v('cr-wh')) filled.push('Webhook secret');
+    if(!filled.length) return toast('Enter at least one field.'); s.creds[env]=[...new Set([...s.creds[env],...filled])]; if(env==='sandbox'&&s.status==='not_configured') s.status='testing';
+    s.logs.unshift({at:Date.now(),msg:`${env} credentials updated (${filled.length} fields)`}); await saveProviders(); closeModal(); toast('Credentials saved. Values are not stored on this test page.'); render(); return; }
+  if(k==='approvals'){ const code=f.dataset.code, s=state.providers[code]; s.approvals={api:document.getElementById('ap-api').checked,agreement:document.getElementById('ap-agreement').checked,regulatory:document.getElementById('ap-regulatory').checked};
+    if(s.approvals.api&&s.approvals.agreement&&!s.approvals.regulatory&&s.status!=='live') s.status='awaiting_approval'; s.logs.unshift({at:Date.now(),msg:'Approvals updated'}); await saveProviders(); closeModal(); render(); return; }
+  if(k==='expense'){ const amt=parseAmt(v('x-amt')); if(!amt) return toast('Enter the amount.'); await put('expenses',rid('exp_'),{title:v('x-title'),category:v('x-cat'),amount:amt,cur:v('x-cur'),supplier:v('x-sup')||'',status:'draft',date:new Date().toISOString().slice(0,10)}); f.reset(); toast('Expense saved as draft.'); return; }
+  if(k==='company'){ state.company={name:v('co-name'),tagline:v('co-tag'),website:v('co-web'),email:v('co-email'),support:v('co-sup'),phone:v('co-phone'),whatsapp:v('co-wa')}; await putConfig('company',state.company); toast('Company details published.'); render(); return; }
+});
+
+// keep progress moving for exchanges in flight
+setInterval(()=>{ if(state.tx.some(t=>Date.now()-t.createdAt<15000)) { if(openReceipt){ const sc=document.querySelector('.modal .card')?.scrollTop||0; receipt(openReceipt); const c=document.querySelector('.modal .card'); if(c) c.scrollTop=sc; }
+    if(!document.querySelector('.modal')&&!(document.activeElement&&['INPUT','SELECT','TEXTAREA'].includes(document.activeElement.tagName))) render(); } },1500);
+
+if(location.hash==='#admin') state.mode='admin';
+render(); connect();
+</script>
+
+</body></html>
