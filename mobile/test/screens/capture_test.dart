@@ -36,6 +36,14 @@ Future<void> _fonts() async {
     }
     await l.load();
   }
+  for (final path in ['/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf', 'test/screens/mono.ttf']) {
+    final f = File(path);
+    if (f.existsSync()) {
+      final l = FontLoader('monospace')..addFont(Future.value(ByteData.view(f.readAsBytesSync().buffer)));
+      await l.load();
+      break;
+    }
+  }
   final icons = File('test/screens/MaterialIcons-Regular.otf');
   if (icons.existsSync()) {
     final l = FontLoader('MaterialIcons')
@@ -80,6 +88,21 @@ Future<void> _tapText(WidgetTester t, String text, {bool last = false}) async {
   await t.tap(last ? f.last : f.first, warnIfMissed: false);
   await t.pump(const Duration(milliseconds: 600));
   await t.pump(const Duration(milliseconds: 600));
+}
+
+Future<void> _scrollTap(WidgetTester t, String text) async {
+  final f = find.text(text);
+  await t.scrollUntilVisible(f.last, 250, scrollable: find.byType(Scrollable).first, maxScrolls: 30);
+  await t.pump(const Duration(milliseconds: 300));
+  await t.tap(f.last, warnIfMissed: false);
+  await t.pump(const Duration(milliseconds: 600));
+}
+
+Future<void> _settleQuote(WidgetTester t) async {
+  await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 1200)));
+  for (var i = 0; i < 5; i++) {
+    await t.pump(const Duration(milliseconds: 400));
+  }
 }
 
 void main() {
@@ -148,40 +171,35 @@ void main() {
       await _tapText(t, st.s.t('nav_exchange'), last: true);
       await _tapText(t, st.s.t('choose_provider'));
     });
-    await show(st, const HomeShell(), '07-exchange-quote', act: () async {
+    Future<void> fill(String a, String b, String amt, String acc) async {
       await _tapText(t, st.s.t('nav_exchange'), last: true);
       await _tapText(t, st.s.t('choose_provider'));
-      await _tapText(t, 'Sahal', last: true);
+      await _tapText(t, a, last: true);
       await _tapText(t, st.s.t('choose_provider'));
-      await _tapText(t, 'eDahab', last: true);
-      await t.enterText(find.byType(TextField).first, '100');
-      await t.enterText(find.byType(TextField).at(1), '623456789');
+      await _tapText(t, b, last: true);
+      await t.enterText(find.byType(TextField).first, amt);
+      await t.enterText(find.byType(TextField).at(1), acc);
       await t.pump();
-      await t.ensureVisible(find.text(st.s.t('get_quote')));
-      await _tapText(t, st.s.t('get_quote'));
-      await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 900)));
-      for (var i = 0; i < 4; i++) {
-        await t.pump(const Duration(milliseconds: 400));
-      }
-      await t.drag(find.byType(Scrollable).first, const Offset(0, -260));
+    }
+    await show(st, const HomeShell(), '07-exchange-quote', act: () async {
+      await fill('Sahal', 'eDahab', '100', '623456789');
+      await _scrollTap(t, st.s.t('get_quote'));
+      await _settleQuote(t);
+      await t.drag(find.byType(Scrollable).first, const Offset(0, 2000));
+      await t.pump(const Duration(milliseconds: 400));
+    });
+    await show(st, const HomeShell(), '07b-quote-summary', act: () async {
+      await fill('Sahal', 'eDahab', '100', '623456789');
+      await _scrollTap(t, st.s.t('get_quote'));
+      await _settleQuote(t);
+      await t.scrollUntilVisible(find.text(st.s.t('exchange_now')).last, 250, scrollable: find.byType(Scrollable).first, maxScrolls: 30);
     });
     await show(st, const HomeShell(), '08-confirm', act: () async {
-      await _tapText(t, st.s.t('nav_exchange'), last: true);
-      await _tapText(t, st.s.t('choose_provider'));
-      await _tapText(t, 'EVC Plus', last: true);
-      await _tapText(t, st.s.t('choose_provider'));
-      await _tapText(t, 'M-Pesa', last: true);
-      await t.enterText(find.byType(TextField).first, '250');
-      await t.enterText(find.byType(TextField).at(1), '712345678');
-      await t.pump();
-      await t.ensureVisible(find.text(st.s.t('get_quote')));
-      await _tapText(t, st.s.t('get_quote'));
-      await t.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 900)));
-      for (var i = 0; i < 4; i++) {
-        await t.pump(const Duration(milliseconds: 400));
-      }
-      await t.ensureVisible(find.text(st.s.t('exchange_now')).last);
-      await _tapText(t, st.s.t('exchange_now'), last: true);
+      await fill('EVC Plus', 'M-Pesa', '250', '712345678');
+      await _scrollTap(t, st.s.t('get_quote'));
+      await _settleQuote(t);
+      await _scrollTap(t, st.s.t('exchange_now'));
+      await t.pump(const Duration(milliseconds: 600));
     });
 
     // progress + receipt from API-created exchanges
@@ -210,11 +228,16 @@ void main() {
 
     // Somali
     final so = await fresh(lang: 'so');
+    await t.runAsync(() => so.setLanguage('so'));
     await show(so, const HomeShell(), '14-home-somali');
     await show(so, const HomeShell(), '15-exchange-somali', act: () async {
       await _tapText(t, so.s.t('nav_exchange'), last: true);
     });
+    await show(so, const HomeShell(), '16-profile-somali', act: () async {
+      await _tapText(t, so.s.t('nav_profile'), last: true);
+    });
 
     File('${_out.path}/log.txt').writeAsStringSync(_log.join('\n'));
+    debugDisableShadows = true;
   }, skip: !_enabled);
 }
