@@ -6,6 +6,7 @@ on:
     paths-ignore:
       - "mobile/test/screens/**"
       - ".github/workflows/screenshots.yml"
+      - "web/**"
   workflow_dispatch:
     inputs:
       api_base_url:
