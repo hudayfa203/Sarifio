@@ -15,8 +15,11 @@ Future<void> main() async {
 }
 
 class SarifioApp extends StatelessWidget {
-  const SarifioApp({super.key, required this.state});
+  const SarifioApp({super.key, required this.state, this.home});
   final AppState state;
+
+  /// First screen; defaults to the splash. Tests pass a specific screen.
+  final Widget? home;
 
   @override
   Widget build(BuildContext context) {
@@ -37,7 +40,7 @@ class SarifioApp extends StatelessWidget {
             _WidgetsLoc(),
             _CupertinoLoc(),
           ],
-          home: const SplashScreen(),
+          home: home ?? const SplashScreen(),
         );
       }),
     );

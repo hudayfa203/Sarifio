@@ -3,6 +3,9 @@ name: SARIFIO build
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - "mobile/test/screens/**"
+      - ".github/workflows/screenshots.yml"
   workflow_dispatch:
     inputs:
       api_base_url:

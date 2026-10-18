@@ -1,0 +1,36 @@
+name: App screenshots
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "mobile/test/screens/**"
+      - ".github/workflows/screenshots.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: subosito/flutter-action@v2
+        with: { channel: stable, cache: true }
+      - name: Capture app screens (Test Mode)
+        working-directory: mobile
+        run: |
+          ROOT="$(dirname "$(dirname "$(which flutter)")")"
+          cp "$ROOT/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf" test/screens/ || find "$ROOT" -name "MaterialIcons-Regular.otf" | head -1 | xargs -I{} cp {} test/screens/
+          flutter pub get
+          set -o pipefail
+          SARIFIO_SHOTS=1 flutter test test/screens 2>&1 | tee shots-run.log || true
+          mkdir -p shots && cp shots-run.log shots/
+      - name: Push screenshots to the "screenshots" branch
+        run: |
+          cd mobile/shots
+          git init -q && git checkout -q -b screenshots
+          git config user.name "sarifio-ci" && git config user.email "ci@sarifio.com"
+          git add -A && git commit -qm "App screenshots ${{ github.sha }}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" screenshots
